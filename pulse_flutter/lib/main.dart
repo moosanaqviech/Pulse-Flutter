@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-//import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -12,7 +12,7 @@ import 'services/payment_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'utils/app_theme.dart';
-// import 'utils/constants.dart';
+import 'utils/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,9 +22,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Configure Stripe
-  // Stripe.publishableKey = Constants.stripePublishableKey;
-  //await Stripe.instance.applySettings();
+  // Configure Stripe with new API
+  Stripe.publishableKey = Constants.stripePublishableKey;
+  Stripe.merchantIdentifier = 'merchant.com.pulse.consumer';
+  await Stripe.instance.applySettings();
   
   runApp(const PulseApp());
 }

@@ -7,8 +7,6 @@ import '../services/deal_service.dart';
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
 import '../models/deal.dart';
-import '../widgets/deal_info_window.dart';
-import '../widgets/custom_app_bar.dart';
 import '../widgets/deal_bottom_sheet.dart';
 import 'checkout_screen.dart';
 
@@ -20,6 +18,9 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  // Add GlobalKey for Scaffold
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
   Deal? _selectedDeal;
@@ -128,9 +129,47 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
-        onMenuTap: _showDrawer,
-        onSearchTap: _showSearch,
+      key: _scaffoldKey, // Assign the key to Scaffold
+      appBar: AppBar(
+        title: const Text(
+          'Pulse',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white),
+          onPressed: () {
+            // Open the drawer using the GlobalKey
+            _scaffoldKey.currentState?.openDrawer();
+          },
+          tooltip: 'Menu',
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _showSearch,
+            tooltip: 'Search',
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Notifications feature coming soon!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            tooltip: 'Notifications',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Consumer<DealService>(
         builder: (context, dealService, _) {
@@ -214,21 +253,18 @@ class _MainScreenState extends State<MainScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to get current location: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to get current location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  void _showDrawer() {
-    Scaffold.of(context).openDrawer();
-  }
-
   void _showSearch() {
-    // TODO: Implement search functionality
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Search functionality coming soon!')),
     );
@@ -276,6 +312,9 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   // TODO: Navigate to favorites
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Favorites feature coming soon!')),
+                  );
                 },
               ),
               ListTile(
@@ -284,6 +323,9 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   // TODO: Navigate to purchase history
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Purchase history feature coming soon!')),
+                  );
                 },
               ),
               ListTile(
@@ -292,6 +334,9 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: () {
                   Navigator.of(context).pop();
                   // TODO: Navigate to settings
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Settings feature coming soon!')),
+                  );
                 },
               ),
               const Divider(),
@@ -302,6 +347,15 @@ class _MainScreenState extends State<MainScreen> {
                   onTap: () async {
                     Navigator.of(context).pop();
                     await authService.signOut();
+                  },
+                ),
+              if (user == null)
+                ListTile(
+                  leading: const Icon(Icons.login),
+                  title: const Text('Sign In'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    // Will automatically navigate to login screen via AppWrapper
                   },
                 ),
             ],
