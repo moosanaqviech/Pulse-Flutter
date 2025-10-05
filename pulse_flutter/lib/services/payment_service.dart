@@ -3,6 +3,7 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/deal.dart';
+import '../utils/constants.dart';
 
 class PaymentService extends ChangeNotifier {
   bool _isLoading = false;
@@ -37,33 +38,88 @@ class PaymentService extends ChangeNotifier {
 
       debugPrint('✅ Payment Intent created');
 
-      // Step 2: Initialize Payment Sheet
-      await Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
-          merchantDisplayName: 'Pulse',
-          style: ThemeMode.system,
-          // Enable Google Pay
-          googlePay: const PaymentSheetGooglePay(
-            merchantCountryCode: 'US',
-            currencyCode: 'USD',
-            testEnv: true, // Set to false for production
+      // Step 2: Initialize Payment Sheet with proper configuration
+      try {
+        await Stripe.instance.initPaymentSheet(
+          paymentSheetParameters: SetupPaymentSheetParameters(
+            paymentIntentClientSecret: clientSecret,
+            merchantDisplayName: 'Pulse',
+            style: ThemeMode.light, // Force light mode to prevent theme issues
+            // Enable Google Pay with CAD currency
+            googlePay: PaymentSheetGooglePay(
+              merchantCountryCode: Constants.merchantCountryCode,
+              currencyCode: Constants.currency.toUpperCase(),
+              testEnv: true,
+            ),
+            // Enable Apple Pay (iOS only) with CAD currency
+            applePay: PaymentSheetApplePay(
+              merchantCountryCode: Constants.merchantCountryCode,
+            ),
+            // CRITICAL: Customize appearance to fix keyboard issues
+            appearance: PaymentSheetAppearance(
+              colors: PaymentSheetAppearanceColors(
+                background: Colors.white,
+                primary: const Color(0xFF1976D2),
+                componentBackground: Colors.white,
+                componentBorder: Colors.grey.shade300,
+                componentDivider: Colors.grey.shade300,
+                primaryText: Colors.black,
+                secondaryText: Colors.grey.shade700,
+                componentText: Colors.black,
+                placeholderText: Colors.grey.shade500,
+              ),
+              shapes: PaymentSheetShape(
+                borderRadius: 12,
+                borderWidth: 1,
+              ),
+              primaryButton: PaymentSheetPrimaryButtonAppearance(
+                colors: PaymentSheetPrimaryButtonTheme(
+                  light: PaymentSheetPrimaryButtonThemeColors(
+                    background: const Color(0xFF1976D2),
+                    text: Colors.white,
+                    border: const Color(0xFF1976D2),
+                  ),
+                ),
+              ),
+            ),
+            // Add customer details configuration
+            allowsDelayedPaymentMethods: false, // Disable delayed payment methods
+            // Remove return URL to prevent navigation issues
+            returnURL: null,
           ),
-          // Enable Apple Pay (iOS only)
-          applePay: const PaymentSheetApplePay(
-            merchantCountryCode: 'US',
-          ),
-        ),
-      );
+        );
+      } catch (e) {
+        debugPrint('❌ Error initializing payment sheet: $e');
+        _setError('Failed to initialize payment: ${e.toString()}');
+        return false;
+      }
 
       debugPrint('✅ Payment Sheet initialized');
 
-      // Step 3: Present Payment Sheet
-      await Stripe.instance.presentPaymentSheet();
-
-      debugPrint('✅ Payment completed successfully');
-
-      return true;
+      // Step 3: Present Payment Sheet with error handling
+      try {
+        // CRITICAL: Add a small delay before presenting to ensure initialization is complete
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        await Stripe.instance.presentPaymentSheet();
+        debugPrint('✅ Payment completed successfully');
+        return true;
+      } on StripeException catch (e) {
+        debugPrint('❌ Payment Sheet Error: ${e.error.code} - ${e.error.localizedMessage}');
+        
+        // Don't show error for cancellation
+        if (e.error.code == FailureCode.Canceled) {
+          debugPrint('ℹ️ User cancelled payment');
+          return false;
+        }
+        
+        _setError(_getStripeErrorMessage(e));
+        return false;
+      } catch (e) {
+        debugPrint('❌ Unexpected payment sheet error: $e');
+        _setError('Payment failed. Please try again.');
+        return false;
+      }
 
     } on StripeException catch (e) {
       debugPrint('❌ Stripe Error: ${e.error.localizedMessage}');
@@ -88,7 +144,7 @@ class PaymentService extends ChangeNotifier {
     try {
       debugPrint('🔵 Creating payment intent...');
       debugPrint('   Deal ID: $dealId');
-      debugPrint('   Amount: \${amount.toStringAsFixed(2)}');
+      debugPrint('   Amount: ${Constants.currencySymbol}${amount.toStringAsFixed(2)} ${Constants.currency.toUpperCase()}');
 
       // Call Firebase Cloud Function
       final callable = FirebaseFunctions.instance
@@ -97,7 +153,7 @@ class PaymentService extends ChangeNotifier {
       final response = await callable.call({
         'dealId': dealId,
         'amount': amount,
-        'currency': 'usd',
+        'currency': Constants.currency,
       });
 
       debugPrint('✅ Payment intent response received');

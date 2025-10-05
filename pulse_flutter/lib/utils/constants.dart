@@ -7,6 +7,11 @@ class Constants {
   static const String stripePublishableKey = 'pk_test_51QXBjgKjJcnAxMPPoJf9CBlbLqtqCV0RBmFnUebLApJfoOTkQeIanCAzuDLEGFkcn1lyVuILqd7ftSxHYq7XzcVB000c7vbiky';
   static const String stripeLivePublishableKey = 'pk_live_51QXBjgKjJcnAxMPPHB2pV6ReR1bopHZkbxRQ081ddrn3BfefmcExkGdcdw2iEJCFWGUoD5YdtoFw4ikSieqEYbAu00mKtRjtxY';
   
+  // Currency Configuration
+  static const String currency = 'cad'; // Changed from 'usd' to 'cad'
+  static const String currencySymbol = '\$'; // CAD uses $ symbol
+  static const String merchantCountryCode = 'CA'; // Changed from 'US' to 'CA'
+  
   // Google Maps API Key
   static const String googleMapsApiKey = 'AIzaSyColwr7omwJ5dvwnOarwERc316IVWAjlAk';
   

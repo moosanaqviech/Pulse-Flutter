@@ -23,40 +23,51 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checkout'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Deal Summary Card
-            _buildDealSummary(),
-            
-            const SizedBox(height: 24),
-            
-            // Payment Method Info Card
-            _buildPaymentMethodInfo(),
-            
-            const SizedBox(height: 16),
-            
-            // Security Notice
-            _buildSecurityNotice(),
-            
-            const SizedBox(height: 24),
-            
-            // Purchase Button
-            _buildPurchaseButton(),
-            
-            const SizedBox(height: 16),
-            
-            // Terms and conditions
-            _buildTerms(),
-          ],
+    return WillPopScope(
+      // Prevent back navigation while processing
+      onWillPop: () async => !_isProcessing,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Checkout'),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+          // Disable back button while processing
+          leading: _isProcessing 
+              ? null 
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Deal Summary Card
+              _buildDealSummary(),
+              
+              const SizedBox(height: 24),
+              
+              // Payment Method Info Card
+              _buildPaymentMethodInfo(),
+              
+              const SizedBox(height: 16),
+              
+              // Security Notice
+              _buildSecurityNotice(),
+              
+              const SizedBox(height: 24),
+              
+              // Purchase Button
+              _buildPurchaseButton(),
+              
+              const SizedBox(height: 16),
+              
+              // Terms and conditions
+              _buildTerms(),
+            ],
+          ),
         ),
       ),
     );
@@ -185,7 +196,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
                 Text(
-                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                  '\$${widget.deal.dealPrice.toStringAsFixed(2)} CAD',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).primaryColor,
@@ -360,6 +371,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _processPurchase() async {
+    // Prevent multiple taps
+    if (_isProcessing) return;
+    
     final authService = Provider.of<AuthService>(context, listen: false);
     final paymentService = Provider.of<PaymentService>(context, listen: false);
     
@@ -373,20 +387,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     try {
+      debugPrint('🔵 Starting purchase process');
+      
       final success = await paymentService.processPayment(
         deal: widget.deal,
         userId: authService.currentUser!.uid,
       );
 
-      if (success && mounted) {
+      if (!mounted) return;
+
+      if (success) {
+        debugPrint('✅ Purchase successful');
         _showSuccessDialog();
-      } else if (mounted) {
+      } else {
+        debugPrint('❌ Purchase failed');
         final errorMsg = paymentService.errorMessage;
-        if (errorMsg != null && !errorMsg.contains('cancel')) {
+        // Don't show error for cancellation
+        if (errorMsg != null && 
+            !errorMsg.toLowerCase().contains('cancel')) {
           _showErrorDialog(errorMsg);
         }
       }
     } catch (e) {
+      debugPrint('❌ Purchase exception: $e');
       if (mounted) {
         _showErrorDialog('An unexpected error occurred: $e');
       }

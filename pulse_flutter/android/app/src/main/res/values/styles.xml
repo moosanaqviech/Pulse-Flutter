@@ -14,4 +14,20 @@
     <style name="NormalTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    
+    <!-- CRITICAL: Stripe Payment Flow Theme -->
+    <style name="StripePaymentFlowTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
+    </style>
+    
+    <!-- CRITICAL: Stripe Payment Methods Theme -->
+    <style name="StripePaymentMethodsActivityTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
+    </style>
 </resources>

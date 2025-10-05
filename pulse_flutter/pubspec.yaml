@@ -38,7 +38,10 @@ dependencies:
   dio: ^5.4.0
   
   # Stripe Payments
-  flutter_stripe: ^9.6.0
+  flutter_stripe: ^11.1.0
+
+  #QR code
+  qr_flutter: ^4.1.0
   
   # Image Loading & Caching
   cached_network_image: ^3.3.0

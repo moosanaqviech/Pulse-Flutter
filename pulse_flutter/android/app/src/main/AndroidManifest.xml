@@ -10,7 +10,8 @@
     <application
         android:label="Pulse"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
         
         <!-- Google Maps API Key -->
         <meta-data
@@ -27,7 +28,7 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
             
-            <!-- Specify that this is a Flutter UI. -->
+            <!-- CRITICAL: This meta-data is required for proper theme handling -->
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
@@ -38,6 +39,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        
+        <!-- Stripe Activity Configuration -->
+        <!-- CRITICAL: Add this to prevent keyboard issues with Stripe -->
+        <activity
+            android:name="com.stripe.android.view.PaymentFlowActivity"
+            android:theme="@style/StripePaymentFlowTheme"
+            android:windowSoftInputMode="adjustResize" />
+        
+        <activity
+            android:name="com.stripe.android.view.PaymentMethodsActivity"
+            android:theme="@style/StripePaymentMethodsActivityTheme"
+            android:windowSoftInputMode="adjustResize" />
         
         <!-- Firebase Messaging Service -->
         <service

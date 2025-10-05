@@ -34,7 +34,7 @@ exports.createPaymentIntent = functions.https.onCall(async (data: any, context: 
 
     const dealId = String(data.dealId || "");
     const amount = Number(data.amount || 0);
-    const currency = String(data.currency || "usd");
+    const currency = String(data.currency || "cad").toLowerCase(); // Default to CAD
     const userId = String(context.auth.uid);
 
     // Validate inputs
@@ -49,6 +49,15 @@ exports.createPaymentIntent = functions.https.onCall(async (data: any, context: 
       throw new functions.https.HttpsError(
         "invalid-argument",
         "Amount must be greater than 0"
+      );
+    }
+
+    // Validate currency (accept both USD and CAD)
+    const validCurrencies = ["usd", "cad"];
+    if (!validCurrencies.includes(currency)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        `Invalid currency. Must be one of: ${validCurrencies.join(", ")}`
       );
     }
 
@@ -108,10 +117,10 @@ exports.createPaymentIntent = functions.https.onCall(async (data: any, context: 
 
     const userData = userDoc.exists ? userDoc.data() : {};
 
-    // Create Payment Intent
+    // Create Payment Intent with proper currency
     const paymentIntent = await stripe.paymentIntents.create({
       amount: expectedAmount,
-      currency: currency.toLowerCase(),
+      currency: currency,
       metadata: {
         userId: userId,
         dealId: dealId,
@@ -144,7 +153,7 @@ exports.createPaymentIntent = functions.https.onCall(async (data: any, context: 
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-    console.log("Payment Intent created:", paymentIntent.id);
+    console.log("Payment Intent created:", paymentIntent.id, "Currency:", currency);
 
     return {
       success: true,
@@ -238,6 +247,7 @@ exports.confirmPayment = functions.https.onCall(async (data: any, context: any) 
         dealId: paymentData.dealId,
         purchaseDate: admin.firestore.FieldValue.serverTimestamp(),
         amount: paymentData.amount,
+        currency: paymentData.currency,
       });
 
     console.log("Purchase confirmed:", purchaseRef.id);
