@@ -87,12 +87,13 @@ class PurchaseService extends ChangeNotifier {
       final callable = FirebaseFunctions.instance
           .httpsCallable('confirmPayment');
 
+      // IMPORTANT: Send purchaseId, not paymentIntentId
       final response = await callable.call({
-        'purchaseId': purchaseId,
+        'purchaseId': purchaseId,  // This is the correct parameter name
         'userId': userId,
       });
 
-      debugPrint('✅ Payment confirmed');
+      debugPrint('✅ Payment confirmed response: ${response.data}');
 
       final data = response.data as Map<String, dynamic>;
       
@@ -111,6 +112,21 @@ class PurchaseService extends ChangeNotifier {
           notifyListeners();
           
           return purchase;
+        } else {
+          debugPrint('⚠️ Purchase confirmed but could not fetch updated data');
+          // Still return success - create a purchase object from the response
+          return Purchase(
+            id: purchaseId,
+            userId: userId,
+            dealId: '',
+            dealTitle: '',
+            businessName: '',
+            amount: 0,
+            status: 'confirmed',
+            purchaseTime: DateTime.now().millisecondsSinceEpoch,
+            expirationTime: DateTime.now().millisecondsSinceEpoch,
+            qrCode: data['qrCode'] as String?,
+          );
         }
       } else {
         _setError(data['error']?.toString() ?? 'Failed to confirm payment');
@@ -120,6 +136,7 @@ class PurchaseService extends ChangeNotifier {
 
     } on FirebaseFunctionsException catch (e) {
       debugPrint('❌ Cloud Function Error: ${e.code} - ${e.message}');
+      debugPrint('❌ Details: ${e.details}');
       _setError(_getFirebaseFunctionError(e));
       return null;
     } catch (e) {
@@ -197,6 +214,8 @@ class PurchaseService extends ChangeNotifier {
         return 'You don\'t have permission to access this purchase';
       case 'unavailable':
         return 'Service temporarily unavailable. Please try again.';
+      case 'invalid-argument':
+        return 'Invalid request: ${e.message}';
       default:
         return e.message ?? 'An error occurred';
     }

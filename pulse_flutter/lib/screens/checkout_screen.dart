@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../models/deal.dart';
 import '../services/payment_service.dart';
+import '../services/purchase_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/custom_button.dart';
+import 'voucher_detail_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final Deal deal;
@@ -23,51 +25,40 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      // Prevent back navigation while processing
-      onWillPop: () async => !_isProcessing,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Checkout'),
-          backgroundColor: Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          // Disable back button while processing
-          leading: _isProcessing 
-              ? null 
-              : IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Deal Summary Card
-              _buildDealSummary(),
-              
-              const SizedBox(height: 24),
-              
-              // Payment Method Info Card
-              _buildPaymentMethodInfo(),
-              
-              const SizedBox(height: 16),
-              
-              // Security Notice
-              _buildSecurityNotice(),
-              
-              const SizedBox(height: 24),
-              
-              // Purchase Button
-              _buildPurchaseButton(),
-              
-              const SizedBox(height: 16),
-              
-              // Terms and conditions
-              _buildTerms(),
-            ],
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Checkout'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Deal Summary Card
+            _buildDealSummary(),
+            
+            const SizedBox(height: 24),
+            
+            // Payment Method Info Card
+            _buildPaymentMethodInfo(),
+            
+            const SizedBox(height: 16),
+            
+            // Security Notice
+            _buildSecurityNotice(),
+            
+            const SizedBox(height: 24),
+            
+            // Purchase Button
+            _buildPurchaseButton(),
+            
+            const SizedBox(height: 16),
+            
+            // Terms and conditions
+            _buildTerms(),
+          ],
         ),
       ),
     );
@@ -196,7 +187,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
                 Text(
-                  '\$${widget.deal.dealPrice.toStringAsFixed(2)} CAD',
+                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).primaryColor,
@@ -371,11 +362,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _processPurchase() async {
-    // Prevent multiple taps
-    if (_isProcessing) return;
-    
     final authService = Provider.of<AuthService>(context, listen: false);
     final paymentService = Provider.of<PaymentService>(context, listen: false);
+    final purchaseService = Provider.of<PurchaseService>(context, listen: false);
     
     if (authService.currentUser == null) {
       _showErrorDialog('Please sign in to complete your purchase');
@@ -387,29 +376,64 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     try {
-      debugPrint('🔵 Starting purchase process');
-      
-      final success = await paymentService.processPayment(
+      // Step 1: Create purchase record
+      debugPrint('📝 Creating purchase record...');
+      final purchaseId = await purchaseService.createPurchase(
+        userId: authService.currentUser!.uid,
         deal: widget.deal,
+      );
+
+      if (purchaseId == null) {
+        throw Exception('Failed to create purchase record');
+      }
+
+      debugPrint('✅ Purchase record created: $purchaseId');
+
+      // Step 2: Process Stripe payment
+      debugPrint('💳 Processing Stripe payment...');
+      final paymentSuccess = await paymentService.processPayment(
+        deal: widget.deal,
+        userId: authService.currentUser!.uid,
+        purchaseId: purchaseId,
+      );
+
+      if (!paymentSuccess) {
+        debugPrint('❌ Stripe payment failed');
+        if (mounted) {
+          final errorMsg = paymentService.errorMessage;
+          if (errorMsg != null && !errorMsg.contains('cancel')) {
+            _showErrorDialog(errorMsg);
+          }
+        }
+        return;
+      }
+
+      debugPrint('✅ Stripe payment successful');
+
+      // Step 3: Confirm payment and generate QR code
+      debugPrint('🔄 Confirming payment and generating QR code...');
+      final purchase = await purchaseService.confirmPayment(
+        purchaseId: purchaseId,
         userId: authService.currentUser!.uid,
       );
 
-      if (!mounted) return;
-
-      if (success) {
-        debugPrint('✅ Purchase successful');
-        _showSuccessDialog();
-      } else {
-        debugPrint('❌ Purchase failed');
-        final errorMsg = paymentService.errorMessage;
-        // Don't show error for cancellation
-        if (errorMsg != null && 
-            !errorMsg.toLowerCase().contains('cancel')) {
-          _showErrorDialog(errorMsg);
-        }
+      if (purchase == null) {
+        throw Exception('Failed to confirm payment');
       }
+
+      debugPrint('✅ Payment confirmed with QR code');
+
+      // Step 4: Navigate to voucher screen
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => VoucherDetailScreen(purchase: purchase),
+          ),
+        );
+      }
+
     } catch (e) {
-      debugPrint('❌ Purchase exception: $e');
+      debugPrint('❌ Error in purchase flow: $e');
       if (mounted) {
         _showErrorDialog('An unexpected error occurred: $e');
       }
@@ -420,81 +444,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         });
       }
     }
-  }
-
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 32),
-            SizedBox(width: 12),
-            Expanded(child: Text('Success!')),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your purchase of "${widget.deal.title}" was successful!',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '📱 What\'s Next?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• Find your voucher in Purchase History\n'
-                    '• Show it at ${widget.deal.businessName}\n'
-                    '• Enjoy your deal!',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'A confirmation email has been sent to your email address.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Go back to map
-            },
-            child: const Text('View Voucher'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Go back to map
-            },
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showErrorDialog(String message) {
