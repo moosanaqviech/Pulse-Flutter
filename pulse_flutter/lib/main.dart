@@ -1,3 +1,4 @@
+// pulse_flutter/lib/main.dart - Updated with safer voucher services
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -10,6 +11,7 @@ import 'services/deal_service.dart';
 import 'services/location_service.dart';
 import 'services/payment_service.dart';
 import 'services/purchase_service.dart';
+import 'services/voucher_notification_service.dart'; // NEW
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'utils/app_theme.dart';
@@ -43,6 +45,7 @@ class PulseApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LocationService()),
         ChangeNotifierProvider(create: (_) => PaymentService()),
         ChangeNotifierProvider(create: (_) => PurchaseService()),
+        ChangeNotifierProvider(create: (_) => VoucherNotificationService()), // NEW
       ],
       child: MaterialApp(
         title: 'Pulse',
@@ -56,8 +59,43 @@ class PulseApp extends StatelessWidget {
   }
 }
 
-class AppWrapper extends StatelessWidget {
+class AppWrapper extends StatefulWidget {
   const AppWrapper({super.key});
+
+  @override
+  State<AppWrapper> createState() => _AppWrapperState();
+}
+
+class _AppWrapperState extends State<AppWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Set up voucher notifications after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setupVoucherNotifications();
+    });
+  }
+
+  void _setupVoucherNotifications() {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final notificationService = Provider.of<VoucherNotificationService>(context, listen: false);
+      
+      final user = authService.currentUser;
+      if (user?.uid != null) {
+        notificationService.startListening(
+          user!.uid,
+          (update) {
+            if (mounted) {
+              update.showNotification(context);
+            }
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('Error setting up voucher notifications: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +106,10 @@ class AppWrapper extends StatelessWidget {
         }
         
         if (authService.currentUser != null) {
+          // Set up notifications when user is authenticated
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _setupVoucherNotifications();
+          });
           return const MainScreen();
         }
         

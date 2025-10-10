@@ -397,3 +397,229 @@ async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promis
     console.error("Error handling payment failure:", error);
   }
 }
+
+// Add these functions to functions/src/index.ts
+
+/**
+ * Verify Voucher (check validity without redeeming)
+ */
+/**
+ * Verify Voucher (check validity without redeeming)
+ */
+export const verifyVoucher = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const purchaseId = String(data.purchaseId || "");
+
+    if (!purchaseId || purchaseId.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "purchaseId is required"
+      );
+    }
+
+    console.log("🔍 Verifying voucher:", purchaseId);
+
+    // Get purchase record
+    const purchaseDoc = await admin.firestore()
+      .collection("purchases")
+      .doc(purchaseId)
+      .get();
+
+    if (!purchaseDoc.exists) {
+      console.error("❌ Purchase not found:", purchaseId);
+      throw new HttpsError(
+        "not-found",
+        "Voucher not found"
+      );
+    }
+
+    const purchase = purchaseDoc.data();
+    if (!purchase) {
+      throw new HttpsError("not-found", "Purchase data not found");
+    }
+
+    console.log("📄 Purchase verification:", {
+      status: purchase.status,
+      isExpired: Date.now() > purchase.expirationTime,
+      isRedeemed: purchase.status === "redeemed",
+    });
+
+    // Check if purchase is confirmed (has QR code)
+    if (purchase.status !== "confirmed") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Voucher is not valid for redemption"
+      );
+    }
+
+    // Check if already redeemed
+    if (purchase.status === "redeemed") {
+      throw new HttpsError(
+        "already-exists",
+        "Voucher has already been redeemed"
+      );
+    }
+
+    // Check if expired
+    if (Date.now() > purchase.expirationTime) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Voucher has expired"
+      );
+    }
+
+    console.log("✅ Voucher verification successful:", purchaseId);
+
+    // Fix: Ensure all values are properly typed and converted
+    const purchaseData = {
+      id: String(purchaseDoc.id),
+      userId: String(purchase.userId || ""),
+      dealId: String(purchase.dealId || ""),
+      dealTitle: String(purchase.dealTitle || ""),
+      businessName: String(purchase.businessName || ""),
+      amount: Number(purchase.amount || 0),
+      status: String(purchase.status || ""),
+      purchaseTime: purchase.purchaseTime ? Number(purchase.purchaseTime) : Date.now(),
+      expirationTime: purchase.expirationTime ? Number(purchase.expirationTime) : Date.now(),
+      imageUrl: String(purchase.imageUrl || ""),
+      qrCode: String(purchase.qrCode || ""),
+    };
+
+    return {
+      success: true,
+      purchase: purchaseData,
+      message: "Voucher is valid for redemption",
+    };
+  } catch (error: any) {
+    console.error("❌ Error in verifyVoucher:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to verify voucher: " + String(error.message || "Unknown error")
+    );
+  }
+});
+
+/**
+ * Redeem Voucher (mark as redeemed)
+ */
+export const redeemVoucher = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const purchaseId = String(data.purchaseId || "");
+
+    if (!purchaseId || purchaseId.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "purchaseId is required"
+      );
+    }
+
+    console.log("🎯 Redeeming voucher:", purchaseId);
+
+    // Get purchase record with transaction
+    const purchaseRef = admin.firestore()
+      .collection("purchases")
+      .doc(purchaseId);
+
+    const result = await admin.firestore().runTransaction(async (transaction) => {
+      const purchaseDoc = await transaction.get(purchaseRef);
+
+      if (!purchaseDoc.exists) {
+        throw new HttpsError(
+          "not-found",
+          "Voucher not found"
+        );
+      }
+
+      const purchase = purchaseDoc.data();
+      if (!purchase) {
+        throw new HttpsError("not-found", "Purchase data not found");
+      }
+
+      // Check if purchase is confirmed (has QR code)
+      if (purchase.status !== "confirmed") {
+        throw new HttpsError(
+          "failed-precondition",
+          "Voucher is not valid for redemption"
+        );
+      }
+
+      // Check if already redeemed
+      if (purchase.status === "redeemed") {
+        throw new HttpsError(
+          "already-exists",
+          "Voucher has already been redeemed"
+        );
+      }
+
+      // Check if expired
+      if (Date.now() > purchase.expirationTime) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Voucher has expired"
+        );
+      }
+
+      // Update purchase status to redeemed
+      transaction.update(purchaseRef, {
+        status: "redeemed",
+        redeemedAt: admin.firestore.FieldValue.serverTimestamp(),
+        redeemedBy: request.auth!.uid,
+      });
+
+      return {
+        id: purchaseDoc.id,
+        userId: purchase.userId,
+        dealId: purchase.dealId,
+        dealTitle: purchase.dealTitle,
+        businessName: purchase.businessName,
+        amount: purchase.amount,
+        status: "redeemed",
+        purchaseTime: purchase.purchaseTime,
+        expirationTime: purchase.expirationTime,
+        imageUrl: purchase.imageUrl || "",
+        qrCode: purchase.qrCode,
+        redeemedAt: Date.now(),
+      };
+    });
+
+    console.log("✅ Voucher redeemed successfully:", purchaseId);
+
+    return {
+      success: true,
+      purchase: result,
+      message: "Voucher redeemed successfully",
+    };
+  } catch (error: any) {
+    console.error("❌ Error in redeemVoucher:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to redeem voucher: " + String(error.message || "Unknown error")
+    );
+  }
+});

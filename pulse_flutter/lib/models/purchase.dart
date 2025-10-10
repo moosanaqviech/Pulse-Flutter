@@ -1,3 +1,4 @@
+// pulse_flutter/lib/models/purchase.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Purchase {
@@ -13,6 +14,8 @@ class Purchase {
   final String? qrCode;
   final String? imageUrl;
   final Map<String, dynamic>? dealSnapshot;
+  final DateTime? redeemedAt; // NEW: When voucher was redeemed
+  final String? redeemedBy; // NEW: Who redeemed it (business user ID)
 
   Purchase({
     required this.id,
@@ -27,6 +30,8 @@ class Purchase {
     this.qrCode,
     this.imageUrl,
     this.dealSnapshot,
+    this.redeemedAt,
+    this.redeemedBy,
   });
 
   // Check if purchase is expired
@@ -44,6 +49,11 @@ class Purchase {
     return status == 'confirmed' && !isExpired && !isRedeemed;
   }
 
+  // Check if has QR code
+  bool get hasQRCode {
+    return qrCode != null && qrCode!.isNotEmpty;
+  }
+
   // Get purchase date
   DateTime get purchaseDate {
     return DateTime.fromMillisecondsSinceEpoch(purchaseTime);
@@ -57,9 +67,13 @@ class Purchase {
   // Create Purchase from Firestore document
   factory Purchase.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+    return Purchase.fromMap(data, doc.id);
+  }
+
+  // Create Purchase from Map with optional ID
+  factory Purchase.fromMap(Map<String, dynamic> data, [String? docId]) {
     return Purchase(
-      id: doc.id,
+      id: docId ?? data['id'] ?? '',
       userId: data['userId'] ?? '',
       dealId: data['dealId'] ?? '',
       dealTitle: data['dealTitle'] ?? '',
@@ -71,7 +85,32 @@ class Purchase {
       qrCode: data['qrCode'],
       imageUrl: data['imageUrl'],
       dealSnapshot: data['dealSnapshot'] as Map<String, dynamic>?,
+      redeemedAt: data['redeemedAt'] != null 
+        ? _parseTimestamp(data['redeemedAt'])
+        : null,
+      redeemedBy: data['redeemedBy'],
     );
+  }
+
+  // Helper method to parse timestamps from various formats
+  static DateTime _parseTimestamp(dynamic timestamp) {
+    if (timestamp == null) {
+      return DateTime.now();
+    }
+
+    if (timestamp is Timestamp) {
+      return timestamp.toDate();
+    }
+
+    if (timestamp is int) {
+      return DateTime.fromMillisecondsSinceEpoch(timestamp);
+    }
+
+    if (timestamp is String) {
+      return DateTime.tryParse(timestamp) ?? DateTime.now();
+    }
+
+    return DateTime.now();
   }
 
   // Convert Purchase to Map for Firestore
@@ -88,6 +127,8 @@ class Purchase {
       'qrCode': qrCode,
       'imageUrl': imageUrl,
       'dealSnapshot': dealSnapshot,
+      'redeemedAt': redeemedAt?.millisecondsSinceEpoch,
+      'redeemedBy': redeemedBy,
     };
   }
 
@@ -105,6 +146,8 @@ class Purchase {
     String? qrCode,
     String? imageUrl,
     Map<String, dynamic>? dealSnapshot,
+    DateTime? redeemedAt,
+    String? redeemedBy,
   }) {
     return Purchase(
       id: id ?? this.id,
@@ -119,12 +162,14 @@ class Purchase {
       qrCode: qrCode ?? this.qrCode,
       imageUrl: imageUrl ?? this.imageUrl,
       dealSnapshot: dealSnapshot ?? this.dealSnapshot,
+      redeemedAt: redeemedAt ?? this.redeemedAt,
+      redeemedBy: redeemedBy ?? this.redeemedBy,
     );
   }
 
   @override
   String toString() {
-    return 'Purchase(id: $id, dealTitle: $dealTitle, status: $status, amount: $amount)';
+    return 'Purchase(id: $id, dealTitle: $dealTitle, status: $status, amount: $amount, isRedeemed: $isRedeemed)';
   }
 
   @override
