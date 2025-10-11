@@ -406,6 +406,9 @@ async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promis
 /**
  * Verify Voucher (check validity without redeeming)
  */
+/**
+ * Verify Voucher (check validity without redeeming) - Updated to include stripePaymentIntentId
+ */
 export const verifyVoucher = onCall(async (request) => {
   try {
     if (!request.auth) {
@@ -478,7 +481,7 @@ export const verifyVoucher = onCall(async (request) => {
 
     console.log("✅ Voucher verification successful:", purchaseId);
 
-    // Fix: Ensure all values are properly typed and converted
+    // Return data that works with both Consumer and Business models
     const purchaseData = {
       id: String(purchaseDoc.id),
       userId: String(purchase.userId || ""),
@@ -491,6 +494,10 @@ export const verifyVoucher = onCall(async (request) => {
       expirationTime: purchase.expirationTime ? Number(purchase.expirationTime) : Date.now(),
       imageUrl: String(purchase.imageUrl || ""),
       qrCode: String(purchase.qrCode || ""),
+      stripePaymentIntentId: String(purchase.stripePaymentIntentId || ""), // Added this field
+      dealSnapshot: purchase.dealSnapshot || null, // Include dealSnapshot
+      redeemedAt: purchase.redeemedAt || null,
+      redeemedBy: String(purchase.redeemedBy || ""),
     };
 
     return {
@@ -511,7 +518,6 @@ export const verifyVoucher = onCall(async (request) => {
     );
   }
 });
-
 /**
  * Redeem Voucher (mark as redeemed)
  */
