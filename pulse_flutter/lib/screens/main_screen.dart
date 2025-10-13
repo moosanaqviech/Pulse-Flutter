@@ -1,23 +1,21 @@
 import 'dart:async';
-
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:pulse_flutter/screens/purchase_history_screen.dart';
 
 import '../services/deal_service.dart';
 import '../services/location_service.dart';
 import '../services/auth_service.dart';
-import '../models/deal.dart';
 import '../services/purchase_service.dart';
+import '../models/deal.dart';
 import '../widgets/deal_bottom_sheet.dart';
-import 'checkout_screen.dart';
-
 import '../utils/custom_marker_generator.dart';
-
-import '../screens/voucher_list_screen.dart';
-import "../widgets/voucher_quick access.dart";
+import 'checkout_screen.dart';
+import 'favorite_screen.dart';
+import 'voucher_list_screen.dart';
+import 'purchase_history_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -26,10 +24,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-
-
 class _MainScreenState extends State<MainScreen> {
-  // Add GlobalKey for Scaffold
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
   GoogleMapController? _mapController;
@@ -40,30 +35,30 @@ class _MainScreenState extends State<MainScreen> {
   static const LatLng _defaultLocation = LatLng(43.6532, -79.3832);
   LatLng _currentLocation = _defaultLocation;
 
-  Timer? _neonAnimationTimer;
-  double _neonAnimationPhase = 0.0;
-  final Set<String> _animatedMarkerIds = {};
+  // Neon animation
+  //Timer? _neonAnimationTimer;
+  //double _neonAnimationPhase = 0.0;
+  //final Set<String> _animatedMarkerIds = {};
 
   @override
   void initState() {
     super.initState();
     _initializeScreen();
-    _startNeonAnimation();
+    //_startNeonAnimation();
   }
 
-
   @override
-  void dispose() {
+ /* void dispose() {
     _neonAnimationTimer?.cancel();
     super.dispose();
   }
-void _startNeonAnimation() {
-    _neonAnimationTimer = Timer.periodic(Duration(milliseconds: 50), (timer) {
+
+  void _startNeonAnimation() {
+    _neonAnimationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       setState(() {
         _neonAnimationPhase = (_neonAnimationPhase + 0.02) % 1.0;
       });
       
-      // Only update animated markers to save performance
       if (_animatedMarkerIds.isNotEmpty) {
         _updateAnimatedMarkers();
       }
@@ -81,11 +76,10 @@ void _startNeonAnimation() {
           originalPrice: deal.originalPrice,
           discountPercentage: deal.discountPercentage,
           isActive: deal.isActive && !deal.isExpired && !deal.isSoldOut,
-          isPopular: false,
+          isPopular: true,
           neonAnimationPhase: _neonAnimationPhase,
         );
         
-        // Update the marker
         _markers.removeWhere((marker) => marker.markerId.value == deal.id);
         _markers.add(
           Marker(
@@ -100,8 +94,7 @@ void _startNeonAnimation() {
     }
     
     if (mounted) setState(() {});
-  }
-
+  }*/
 
   Future<void> _initializeScreen() async {
     final dealService = Provider.of<DealService>(context, listen: false);
@@ -128,54 +121,41 @@ void _startNeonAnimation() {
     _updateMarkers();
   }
 
-
   Future<void> _updateMarkers() async {
-  final dealService = Provider.of<DealService>(context, listen: false);
-  
-  setState(() {
-    _markers.clear();
-  });
-  
-  for (final deal in dealService.deals) {
-    // Determine if this deal should have neon effects
-    final shouldAnimate = deal.discountPercentage >= 50;
-    
-    // Create custom marker with neon animation for special deals
-    final customMarker = await CustomMarkerGenerator.createDealMarker(
-      category: deal.category,
-      price: deal.dealPrice,
-      originalPrice: deal.originalPrice,
-      discountPercentage: deal.discountPercentage,
-      isActive: deal.isActive && !deal.isExpired && !deal.isSoldOut,
-      isPopular: true,
-      neonAnimationPhase: shouldAnimate ? _neonAnimationPhase : 0.0,
-    );
+    final dealService = Provider.of<DealService>(context, listen: false);
     
     setState(() {
-      _markers.add(
-        Marker(
-          markerId: MarkerId(deal.id),
-          position: LatLng(deal.latitude, deal.longitude),
-          icon: customMarker,
-          onTap: () => _onMarkerTap(deal),
-          infoWindow: InfoWindow.noText,
-        ),
-      );
+      _markers.clear();
+     // _animatedMarkerIds.clear();
     });
-  }
-}
-  BitmapDescriptor _getMarkerIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'restaurant':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
-      case 'cafe':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
-      case 'shop':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
-      case 'activity':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
-      default:
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet);
+    
+    for (final deal in dealService.deals) {
+      final shouldAnimate = deal.discountPercentage >= 50;
+      
+      final customMarker = await CustomMarkerGenerator.createDealMarker(
+        category: deal.category,
+        price: deal.dealPrice,
+        originalPrice: deal.originalPrice,
+        discountPercentage: deal.discountPercentage,
+        isPopular: shouldAnimate, isActive: deal.isActive && !deal.isExpired && !deal.isSoldOut,
+        neonAnimationPhase: 0.0,//shouldAnimate ? _neonAnimationPhase : 0.0,
+      );
+      
+      if (shouldAnimate) {
+        //_animatedMarkerIds.add(deal.id);
+      }
+      
+      setState(() {
+        _markers.add(
+          Marker(
+            markerId: MarkerId(deal.id),
+            position: LatLng(deal.latitude, deal.longitude),
+            icon: customMarker,
+            onTap: () => _onMarkerTap(deal),
+            infoWindow: InfoWindow.noText,
+          ),
+        );
+      });
     }
   }
 
@@ -210,111 +190,579 @@ void _startNeonAnimation() {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: _scaffoldKey, // Assign the key to Scaffold
-      appBar: AppBar(
-        title: const Text(
-          'Pulse',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () {
-            // Open the drawer using the GlobalKey
-            _scaffoldKey.currentState?.openDrawer();
-          },
-          tooltip: 'Menu',
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: _showSearch,
-            tooltip: 'Search',
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications feature coming soon!'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            tooltip: 'Notifications',
+      key: _scaffoldKey,
+      appBar: _buildAppBar(),
+      body: _buildBody(),
+      drawer: _buildDrawer(),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: Row(
+        children: [
+          const Text(
+            'Pulse',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.orange,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Text(
+              'BETA',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
         ],
       ),
-      body: Consumer<DealService>(
-        builder: (context, dealService, _) {
-          if (dealService.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (dealService.errorMessage != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    dealService.errorMessage!,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => dealService.loadDeals(),
-                    child: const Text('Retry'),
-                  ),
-                ],
+      backgroundColor: Theme.of(context).primaryColor,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
+      leading: IconButton(
+        icon: const Icon(Icons.menu, color: Colors.white),
+        onPressed: () {
+          _scaffoldKey.currentState?.openDrawer();
+        },
+        tooltip: 'Menu',
+      ),
+      actions: [
+        // Deal counter
+        Container(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${_markers.length}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
               ),
-            );
-          }
+              const Text(
+                'DEALS',
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white),
+          onPressed: _showSearch,
+          tooltip: 'Search',
+        ),
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          onPressed: _showNotifications,
+          tooltip: 'Notifications',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
 
-          return GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _currentLocation,
-              zoom: 12.0,
+  Widget _buildBody() {
+    return Stack(
+      children: [
+        Consumer<DealService>(
+          builder: (context, dealService, _) {
+            if (dealService.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
+            if (dealService.errorMessage != null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      dealService.errorMessage!,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => dealService.loadDeals(),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: _currentLocation,
+                zoom: 12.0,
+              ),
+              markers: _markers,
+              onMapCreated: (GoogleMapController controller) {
+                _mapController = controller;
+              },
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false, // We have custom location button
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              onTap: (_) {
+                if (_selectedDeal != null) {
+                  setState(() {
+                    _selectedDeal = null;
+                  });
+                }
+              },
+            );
+          },
+        ),
+
+        // Bottom Action Buttons
+        Positioned(
+          bottom: 20,
+          left: 16,
+          right: 16,
+          child: _buildBottomActionButtons(),
+        ),
+
+        // Custom location button
+        Positioned(
+          bottom: 140,
+          right: 16,
+          child: FloatingActionButton(
+            mini: true,
+            backgroundColor: Colors.white,
+            onPressed: _centerOnCurrentLocation,
+            child: const Icon(
+              Icons.my_location,
+              color: Colors.blue,
             ),
-            markers: _markers,
-            onMapCreated: (GoogleMapController controller) {
-              _mapController = controller;
-            },
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            onTap: (_) {
-              if (_selectedDeal != null) {
-                setState(() {
-                  _selectedDeal = null;
-                });
-              }
-            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomActionButtons() {
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildActionButton(
+              icon: Icons.near_me,
+              label: 'NEARBY',
+              color: Colors.blue,
+              onPressed: _showNearbyDeals,
+            ),
+          ),
+          _buildDivider(),
+          Expanded(
+            child: _buildActionButton(
+              icon: Icons.star,
+              label: 'PREMIUM',
+              color: Colors.orange,
+              onPressed: _showPremiumDeals,
+            ),
+          ),
+          _buildDivider(),
+          Expanded(
+            child: _buildActionButton(
+              icon: Icons.add_business,
+              label: 'REQUEST',
+              color: Colors.green,
+              onPressed: _requestNewBusiness,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(30),
+        child: SizedBox(
+          height: 60,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      width: 1,
+      height: 30,
+      color: Colors.grey.shade300,
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Consumer<AuthService>(
+        builder: (context, authService, _) {
+          final user = authService.currentUser;
+          
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              UserAccountsDrawerHeader(
+                accountName: Text(user?.displayName ?? 'Guest User'),
+                accountEmail: Text(user?.email ?? 'Not signed in'),
+                currentAccountPicture: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    (user?.displayName?.isNotEmpty == true)
+                        ? user!.displayName![0].toUpperCase()
+                        : 'G',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.local_offer),
+                title: const Text('My Vouchers'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const VoucherListScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Purchase History'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PurchaseHistoryScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.favorite),
+                title: const Text('Favorites'),
+                onTap: () {
+                  Navigator.of(context).pop(); // Close drawer
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const FavoritesScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Settings feature coming soon!'),
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.help),
+                title: const Text('Help & Support'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Help feature coming soon!'),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('About'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAboutDialog();
+                },
+              ),
+              if (user != null) ...[
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('Sign Out'),
+                  onTap: () => _signOut(),
+                ),
+              ],
+            ],
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _centerOnCurrentLocation,
-        backgroundColor: Theme.of(context).primaryColor,
-        child: const Icon(Icons.my_location),
+    );
+  }
+
+  // Action button implementations
+  void _showNearbyDeals() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🎯 Showing deals within 2km of your location'),
+        duration: Duration(seconds: 2),
       ),
-      drawer: _buildDrawer(),
+    );
+  }
+
+  void _showPremiumDeals() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('⭐ Showing premium deals from founding partners'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _requestNewBusiness() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildRequestBusinessSheet(),
+    );
+  }
+
+  Widget _buildRequestBusinessSheet() {
+    final TextEditingController businessNameController = TextEditingController();
+    final TextEditingController dealTypeController = TextEditingController();
+    final TextEditingController locationController = TextEditingController();
+
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            Row(
+              children: [
+                Icon(Icons.add_business, color: Colors.green, size: 28),
+                const SizedBox(width: 12),
+                const Text(
+                  'Request New Business',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Know a great local business? Help us bring them to Pulse!',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Form fields
+            TextField(
+              controller: businessNameController,
+              decoration: InputDecoration(
+                labelText: 'Business Name *',
+                hintText: 'e.g., Tony\'s Pizza Palace',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.business),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: locationController,
+              decoration: InputDecoration(
+                labelText: 'Location',
+                hintText: 'e.g., Queen St W, Toronto',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.location_on),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: dealTypeController,
+              decoration: InputDecoration(
+                labelText: 'What kind of deal would be great?',
+                hintText: 'e.g., 20% off pizza, happy hour drinks',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.local_offer),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 24),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () => _submitBusinessRequest(
+                      businessNameController.text,
+                      locationController.text,
+                      dealTypeController.text,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Submit Request',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submitBusinessRequest(String businessName, String location, String dealType) {
+    Navigator.pop(context);
+    
+    if (businessName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a business name')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Thanks! We\'ll reach out to $businessName soon.'),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
@@ -351,169 +799,48 @@ void _startNeonAnimation() {
     );
   }
 
- Widget _buildDrawer() {
-  return Drawer(
-    child: Consumer<AuthService>(
-      builder: (context, authService, _) {
-        final user = authService.currentUser;
-        
-        return ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            UserAccountsDrawerHeader(
-              accountName: Text(user?.displayName ?? 'Guest User'),
-              accountEmail: Text(user?.email ?? 'Not signed in'),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  (user?.displayName?.isNotEmpty == true)
-                      ? user!.displayName![0].toUpperCase()
-                      : 'G',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
-                  ),
-                ),
-              ),
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              onTap: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            
-            // NEW: Add My Vouchers menu item
-            ListTile(
-              leading: const Icon(Icons.local_offer),
-              title: const Text('My Vouchers'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const VoucherListScreen(),
-                  ),
-                );
-              },
-            ),
-            
-            ListTile(
-              leading: const Icon(Icons.favorite),
-              title: const Text('Favorites'),
-              onTap: () {
-                Navigator.of(context).pop();
-                // TODO: Navigate to favorites
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Favorites feature coming soon!')),
-                );
-              },
-            ),
-            
-            // UPDATE: Change this from "Purchase History" to "Transaction History"
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Transaction History'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const VoucherListScreen(),
-                  ),
-                );
-              },
-            ),
-            
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
-              onTap: () {
-                Navigator.of(context).pop();
-                // TODO: Navigate to settings
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Settings feature coming soon!')),
-                );
-              },
-            ),
-            const Divider(),
-            if (user != null)
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Sign Out'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  await authService.signOut();
-                },
-              ),
-            if (user == null)
-              ListTile(
-                leading: const Icon(Icons.login),
-                title: const Text('Sign In'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  // Will automatically navigate to login screen via AppWrapper
-                },
-              ),
-          ],
-        );
-      },
-    ),
-  );
-
+  void _showNotifications() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🔔 No new notifications'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
-Widget _buildVoucherOverlay() {
-  return Positioned(
-    top: 100, // Adjust based on your app bar height
-    left: 16,
-    right: 16,
-    child: Consumer<PurchaseService>(
-      builder: (context, purchaseService, _) {
-        if (purchaseService.activePurchases.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        
-        return Card(
-          elevation: 8,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('About Pulse'),
+        content: const Text(
+          'Pulse helps you discover amazing local deals in your area. '
+          'We\'re currently in beta, working with handpicked local businesses '
+          'to bring you the best offers.\n\n'
+          'Version: 1.0.0 (Beta)',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.local_offer,
-                  color: Theme.of(context).primaryColor,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${purchaseService.activePurchases.length} active voucher${purchaseService.activePurchases.length == 1 ? '' : 's'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const VoucherListScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('View'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
+  void _signOut() async {
+    try {
+      await Provider.of<AuthService>(context, listen: false).signOut();
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed out successfully')),
+      );
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error signing out: $e')),
+      );
+    }
+  }
 }

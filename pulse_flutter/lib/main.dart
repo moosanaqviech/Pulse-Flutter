@@ -12,6 +12,7 @@ import 'services/location_service.dart';
 import 'services/payment_service.dart';
 import 'services/purchase_service.dart';
 import 'services/voucher_notification_service.dart'; // NEW
+import 'providers/favorites_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'utils/app_theme.dart';
@@ -46,6 +47,7 @@ class PulseApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PaymentService()),
         ChangeNotifierProvider(create: (_) => PurchaseService()),
         ChangeNotifierProvider(create: (_) => VoucherNotificationService()), // NEW
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()), // Add this line
       ],
       child: MaterialApp(
         title: 'Pulse',

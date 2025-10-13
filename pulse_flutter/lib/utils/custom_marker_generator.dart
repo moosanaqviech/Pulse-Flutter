@@ -6,10 +6,10 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 
 class CustomMarkerGenerator {
-  // Create a custom marker with category icon and price (no discount badges)
+  // Create a custom marker with just category icon - clean and simple
   static Future<BitmapDescriptor> createDealMarker({
     required String category,
-    required double price,
+    required double price, // Keep for compatibility but won't display
     required double originalPrice,
     required int discountPercentage,
     required bool isActive,
@@ -18,16 +18,13 @@ class CustomMarkerGenerator {
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final size = Size(180, 200);
+    final size = Size(120, 140); // Smaller, cleaner size
 
     // Main marker container
     _drawMarkerContainer(canvas, size, isActive, isPopular);
     
-    // Category icon with neon effect - now fills the whole square
+    // Category icon with neon effect - 20% smaller
     _drawCategoryIcon(canvas, category, size, neonAnimationPhase);
-    
-    // Only price, no discount badge
-    _drawPrice(canvas, price, size);
 
     // Marker pointer (bottom triangle)
     _drawMarkerPointer(canvas, size, isActive);
@@ -39,7 +36,7 @@ class CustomMarkerGenerator {
     return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
   }
 
-  // Enhanced marker with animation capability
+  // Enhanced marker with animation capability - simple version
   static Future<BitmapDescriptor> createAnimatedDealMarker({
     required String category,
     required double price,
@@ -52,7 +49,7 @@ class CustomMarkerGenerator {
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final size = Size(200, 220);
+    final size = Size(140, 160);
 
     // Animated pulse rings for popular deals
     if (isPopular && isPulsing) {
@@ -62,9 +59,6 @@ class CustomMarkerGenerator {
     // Main marker
     _drawMarkerContainer(canvas, size, isActive, isPopular);
     _drawCategoryIcon(canvas, category, size, neonAnimationPhase);
-    
-    // Only price, no discount badge
-    _drawPrice(canvas, price, size);
     _drawMarkerPointer(canvas, size, isActive);
 
     final picture = recorder.endRecording();
@@ -132,40 +126,41 @@ class CustomMarkerGenerator {
   }
 
   static void _drawCategoryIcon(Canvas canvas, String category, Size size, double animationPhase) {
-    final center = Offset(size.width / 2, size.height / 2 - 20);
-    final squareSize = size.width - 40;
+    final center = Offset(size.width / 2, size.height / 2 - 10); // Centered in marker
+    final iconSize = size.width * 0.65; // Much larger - fills most of the rectangle
     
     // Draw neon glow effect around the square boundary
     if (animationPhase > 0) {
       _drawSquareNeonGlow(canvas, size, animationPhase);
     }
 
+    // Get category-specific color
     final iconPaint = Paint()
-      ..color = Colors.white
+      ..color = _getCategoryColor(category)
       ..style = PaintingStyle.fill;
 
-    // Draw category-specific icons that fill the square
+    // Draw category-specific icons that fill the rectangle
     switch (category.toLowerCase()) {
       case 'restaurant':
-        _drawRestaurantIconLarge(canvas, center, squareSize, iconPaint);
+        _drawRestaurantIcon(canvas, center, iconSize, iconPaint);
         break;
       case 'cafe':
-        _drawCafeIconLarge(canvas, center, squareSize, iconPaint);
+        _drawCafeIcon(canvas, center, iconSize, iconPaint);
         break;
       case 'shop':
-        _drawShopIconLarge(canvas, center, squareSize, iconPaint);
+        _drawShopIcon(canvas, center, iconSize, iconPaint);
         break;
       case 'activity':
-        _drawActivityIconLarge(canvas, center, squareSize, iconPaint);
+        _drawActivityIcon(canvas, center, iconSize, iconPaint);
         break;
       case 'salon':
-        _drawSalonIconLarge(canvas, center, squareSize, iconPaint);
+        _drawSalonIcon(canvas, center, iconSize, iconPaint);
         break;
       case 'fitness':
-        _drawFitnessIconLarge(canvas, center, squareSize, iconPaint);
+        _drawFitnessIcon(canvas, center, iconSize, iconPaint);
         break;
       default:
-        _drawDefaultIconLarge(canvas, center, squareSize, iconPaint);
+        _drawDefaultIcon(canvas, center, iconSize, iconPaint);
     }
   }
 
@@ -179,7 +174,7 @@ class CustomMarkerGenerator {
     ];
 
     // Get the square boundary (main marker area without pointer)
-    final squareRect = Rect.fromLTWH(10, 10, size.width - 20, size.height - 40);
+    final squareRect = Rect.fromLTWH(10, 10, size.width - 20, size.height - 30);
 
     // Create multiple rotating neon rings around the square
     for (int ring = 0; ring < 3; ring++) {
@@ -201,7 +196,6 @@ class CustomMarkerGenerator {
   static void _drawSquareNeonRing(Canvas canvas, Rect rect, double phase, List<Color> colors, int ringIndex) {
     final perimeter = 2 * (rect.width + rect.height);
     final segmentCount = 60;
-    final segmentLength = perimeter / segmentCount;
     
     for (int i = 0; i < segmentCount; i++) {
       final t = (i / segmentCount + phase) % 1.0;
@@ -262,58 +256,24 @@ class CustomMarkerGenerator {
     return Color.lerp(color1, color2, localPosition) ?? color1;
   }
 
-  static void _drawPrice(Canvas canvas, double price, Size size) {
-    // Fix the price text display issue
-    String priceText;
-    if (price == price.toInt()) {
-      priceText = '\$${price.toInt()}';
-    } else {
-      priceText = '\$${price.toStringAsFixed(2)}';
+  // Get distinctive color for each business category
+  static Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'restaurant':
+        return Color(0xFFD32F2F); // Rich red
+      case 'cafe':
+        return Color(0xFF8D6E63); // Coffee brown
+      case 'shop':
+        return Color(0xFF1976D2); // Blue
+      case 'activity':
+        return Color(0xFFFFB300); // Amber/gold
+      case 'salon':
+        return Color(0xFFE91E63); // Pink
+      case 'fitness':
+        return Color(0xFF388E3C); // Green
+      default:
+        return Color(0xFF6A1B9A); // Purple
     }
-    
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: priceText,
-        style: TextStyle(
-          color: Color(0xFF2E7D32),
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(
-              color: Colors.white,
-              offset: Offset(1, 1),
-              blurRadius: 2,
-            ),
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    
-    // Draw white background behind price for better visibility
-    final priceBackground = Paint()
-      ..color = Colors.white.withOpacity(0.9)
-      ..style = PaintingStyle.fill;
-    
-    final backgroundRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(size.width / 2, size.height - 85),
-        width: textPainter.width + 12,
-        height: textPainter.height + 8,
-      ),
-      Radius.circular(12),
-    );
-    
-    canvas.drawRRect(backgroundRect, priceBackground);
-    
-    textPainter.paint(
-      canvas,
-      Offset(
-        size.width / 2 - textPainter.width / 2,
-        size.height - 85 - textPainter.height / 2,
-      ),
-    );
   }
 
   static void _drawMarkerPointer(Canvas canvas, Size size, bool isActive) {
@@ -348,90 +308,88 @@ class CustomMarkerGenerator {
     }
   }
 
-  // Large icon versions that fill the square
-  static void _drawRestaurantIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
+  // Category icon drawing methods - large versions that fill the rectangle
+  static void _drawRestaurantIcon(Canvas canvas, Offset center, double size, Paint paint) {
     final path = Path();
     
-    // Fork (left side)
-    final forkWidth = size * 0.15;
+    // Fork (left side) - much larger
+    final forkWidth = size * 0.2;
     final forkHeight = size * 0.8;
     
     // Fork handle
     path.addRect(Rect.fromCenter(
-      center: Offset(center.dx - size * 0.2, center.dy),
+      center: Offset(center.dx - size * 0.2, center.dy + size * 0.05),
       width: forkWidth * 0.6,
-      height: forkHeight,
+      height: forkHeight * 0.6,
     ));
     
-    // Fork prongs
-    for (int i = 0; i < 3; i++) {
-      final prongX = center.dx - size * 0.2 - forkWidth * 0.3 + (i * forkWidth * 0.3);
+    // Fork prongs - larger and more visible
+    for (int i = 0; i < 4; i++) {
+      final prongX = center.dx - size * 0.2 - forkWidth * 0.4 + (i * forkWidth * 0.27);
       path.addRect(Rect.fromCenter(
-        center: Offset(prongX, center.dy - forkHeight * 0.3),
-        width: forkWidth * 0.15,
-        height: forkHeight * 0.4,
+        center: Offset(prongX, center.dy - size * 0.25),
+        width: forkWidth * 0.12,
+        height: forkHeight * 0.45,
       ));
     }
     
-    // Knife (right side)
-    final knifeWidth = size * 0.12;
+    // Knife (right side) - much larger
+    final knifeWidth = size * 0.15;
     final knifeHeight = size * 0.8;
     
     // Knife handle
     path.addRect(Rect.fromCenter(
-      center: Offset(center.dx + size * 0.2, center.dy + knifeHeight * 0.25),
+      center: Offset(center.dx + size * 0.2, center.dy + size * 0.2),
       width: knifeWidth,
       height: knifeHeight * 0.5,
     ));
     
-    // Knife blade
+    // Knife blade - large and prominent
     final bladePath = Path();
-    bladePath.moveTo(center.dx + size * 0.2 - knifeWidth * 0.5, center.dy - knifeHeight * 0.4);
-    bladePath.lineTo(center.dx + size * 0.2 + knifeWidth * 0.5, center.dy - knifeHeight * 0.4);
-    bladePath.lineTo(center.dx + size * 0.2, center.dy - knifeHeight * 0.2);
+    bladePath.moveTo(center.dx + size * 0.2 - knifeWidth * 0.5, center.dy - size * 0.3);
+    bladePath.lineTo(center.dx + size * 0.2 + knifeWidth * 0.5, center.dy - size * 0.3);
+    bladePath.lineTo(center.dx + size * 0.2, center.dy - size * 0.05);
     bladePath.close();
     path.addPath(bladePath, Offset.zero);
 
-    paint.style = PaintingStyle.fill;
     canvas.drawPath(path, paint);
   }
 
-  static void _drawCafeIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
+  static void _drawCafeIcon(Canvas canvas, Offset center, double size, Paint paint) {
     final cupWidth = size * 0.6;
     final cupHeight = size * 0.7;
     
-    // Cup body
+    // Large cup body that fills most of the space
     final cupRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: cupWidth, height: cupHeight),
-      Radius.circular(size * 0.1),
+      Radius.circular(size * 0.08),
     );
     
-    paint.style = PaintingStyle.fill;
     canvas.drawRRect(cupRect, paint);
     
-    // Handle
+    // Large handle
     final handlePaint = Paint()
       ..color = paint.color
       ..style = PaintingStyle.stroke
       ..strokeWidth = size * 0.08;
     
-    final handlePath = Path();
-    handlePath.addArc(
+    canvas.drawArc(
       Rect.fromCenter(
-        center: Offset(center.dx + cupWidth * 0.45, center.dy),
-        width: cupWidth * 0.4,
-        height: cupHeight * 0.4,
+        center: Offset(center.dx + cupWidth * 0.4, center.dy),
+        width: cupWidth * 0.45,
+        height: cupHeight * 0.5,
       ),
       -math.pi / 2,
       math.pi,
+      false,
+      handlePaint,
     );
-    canvas.drawPath(handlePath, handlePaint);
     
-    // Steam
+    // Multiple steam lines - larger and more prominent
     final steamPaint = Paint()
       ..color = paint.color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.04
+      ..strokeWidth = size * 0.05
       ..strokeCap = StrokeCap.round;
     
     for (int i = 0; i < 3; i++) {
@@ -441,68 +399,107 @@ class CustomMarkerGenerator {
       
       steamPath.moveTo(startX, startY);
       steamPath.quadraticBezierTo(
-        startX + size * 0.05, startY - size * 0.1,
+        startX + size * 0.06, startY - size * 0.1,
         startX, startY - size * 0.2,
       );
       steamPath.quadraticBezierTo(
-        startX - size * 0.05, startY - size * 0.3,
+        startX - size * 0.06, startY - size * 0.3,
         startX, startY - size * 0.4,
       );
       
       canvas.drawPath(steamPath, steamPaint);
     }
+    
+    // Coffee surface detail
+    final surfacePaint = Paint()
+      ..color = paint.color.withOpacity(0.7)
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy - cupHeight * 0.25),
+        width: cupWidth * 0.8,
+        height: cupWidth * 0.2,
+      ),
+      surfacePaint,
+    );
   }
 
-  static void _drawShopIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
-    final bagWidth = size * 0.7;
+  static void _drawShopIcon(Canvas canvas, Offset center, double size, Paint paint) {
+    final bagWidth = size * 0.65;
     final bagHeight = size * 0.8;
     
-    // Bag body
+    // Large shopping bag body
     final bagRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: bagWidth, height: bagHeight),
-      Radius.circular(size * 0.08),
+      Radius.circular(size * 0.06),
     );
     
-    paint.style = PaintingStyle.fill;
     canvas.drawRRect(bagRect, paint);
     
-    // Handles
+    // Large handles
     final handlePaint = Paint()
       ..color = paint.color
       ..style = PaintingStyle.stroke
       ..strokeWidth = size * 0.06;
     
-    final handlePath = Path();
-    handlePath.addArc(
+    // Left handle
+    canvas.drawArc(
       Rect.fromCenter(
-        center: Offset(center.dx, center.dy - bagHeight * 0.25),
-        width: bagWidth * 0.5,
+        center: Offset(center.dx - bagWidth * 0.2, center.dy - bagHeight * 0.25),
+        width: bagWidth * 0.25,
         height: bagHeight * 0.3,
       ),
       0,
       math.pi,
+      false,
+      handlePaint,
     );
-    canvas.drawPath(handlePath, handlePaint);
+    
+    // Right handle
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(center.dx + bagWidth * 0.2, center.dy - bagHeight * 0.25),
+        width: bagWidth * 0.25,
+        height: bagHeight * 0.3,
+      ),
+      0,
+      math.pi,
+      false,
+      handlePaint,
+    );
     
     // Shopping bag details
     final detailPaint = Paint()
-      ..color = paint.color.withOpacity(0.7)
+      ..color = paint.color.withOpacity(0.6)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.03;
+      ..strokeWidth = size * 0.04;
     
+    // Fold line
     canvas.drawLine(
-      Offset(center.dx - bagWidth * 0.3, center.dy - bagHeight * 0.1),
-      Offset(center.dx + bagWidth * 0.3, center.dy - bagHeight * 0.1),
+      Offset(center.dx - bagWidth * 0.4, center.dy - bagHeight * 0.1),
+      Offset(center.dx + bagWidth * 0.4, center.dy - bagHeight * 0.1),
+      detailPaint,
+    );
+    
+    // Logo area (rectangle on bag)
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy + bagHeight * 0.1),
+        width: bagWidth * 0.4,
+        height: bagHeight * 0.25,
+      ),
       detailPaint,
     );
   }
 
-  static void _drawActivityIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
+  static void _drawActivityIcon(Canvas canvas, Offset center, double size, Paint paint) {
     final starPath = Path();
     final points = 5;
-    final outerRadius = size * 0.4;
-    final innerRadius = size * 0.2;
+    final outerRadius = size * 0.35; // Much larger
+    final innerRadius = size * 0.18;
     
+    // Draw outer star
     for (int i = 0; i < points * 2; i++) {
       final angle = (i * math.pi) / points - math.pi / 2;
       final radius = i.isEven ? outerRadius : innerRadius;
@@ -517,12 +514,11 @@ class CustomMarkerGenerator {
     }
     starPath.close();
     
-    paint.style = PaintingStyle.fill;
     canvas.drawPath(starPath, paint);
     
-    // Add inner star detail
+    // Inner star detail
     final innerStarPath = Path();
-    final innerOuterRadius = size * 0.25;
+    final innerOuterRadius = size * 0.22;
     final innerInnerRadius = size * 0.12;
     
     for (int i = 0; i < points * 2; i++) {
@@ -540,45 +536,65 @@ class CustomMarkerGenerator {
     innerStarPath.close();
     
     final innerPaint = Paint()
-      ..color = paint.color.withOpacity(0.6)
+      ..color = paint.color.withOpacity(0.7)
       ..style = PaintingStyle.fill;
     
     canvas.drawPath(innerStarPath, innerPaint);
+    
+    // Center circle
+    canvas.drawCircle(center, size * 0.06, paint);
   }
 
-  static void _drawSalonIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
-    paint.style = PaintingStyle.fill;
+  static void _drawSalonIcon(Canvas canvas, Offset center, double size, Paint paint) {
+    // Large scissors that fill the space
     
-    // Scissor blades
-    final bladeSize = size * 0.25;
+    // Left scissor blade
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(center.dx - size * 0.15, center.dy - size * 0.15),
-        width: bladeSize,
-        height: bladeSize * 1.5,
+        width: size * 0.18,
+        height: size * 0.35,
       ),
       paint,
     );
     
+    // Right scissor blade  
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(center.dx + size * 0.15, center.dy + size * 0.15),
-        width: bladeSize,
-        height: bladeSize * 1.5,
+        width: size * 0.18,
+        height: size * 0.35,
       ),
       paint,
     );
     
-    // Scissor pivot and connection
+    // Scissor handles (rings)
+    final handlePaint = Paint()
+      ..color = paint.color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size * 0.04;
+    
+    canvas.drawCircle(
+      Offset(center.dx - size * 0.25, center.dy + size * 0.2), 
+      size * 0.08, 
+      handlePaint
+    );
+    canvas.drawCircle(
+      Offset(center.dx + size * 0.25, center.dy - size * 0.2), 
+      size * 0.08, 
+      handlePaint
+    );
+    
+    // Connection/pivot line
     final pivotPaint = Paint()
       ..color = paint.color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.08
+      ..strokeWidth = size * 0.06
       ..strokeCap = StrokeCap.round;
     
     canvas.drawLine(
-      Offset(center.dx - size * 0.1, center.dy - size * 0.1),
-      Offset(center.dx + size * 0.1, center.dy + size * 0.1),
+      Offset(center.dx - size * 0.08, center.dy - size * 0.08),
+      Offset(center.dx + size * 0.08, center.dy + size * 0.08),
       pivotPaint,
     );
     
@@ -586,19 +602,32 @@ class CustomMarkerGenerator {
     canvas.drawCircle(center, size * 0.05, paint);
   }
 
-  static void _drawFitnessIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
-    paint.style = PaintingStyle.fill;
+  static void _drawFitnessIcon(Canvas canvas, Offset center, double size, Paint paint) {
+    // Large dumbbell that fills the space
     
-    // Weights
-    final weightRadius = size * 0.15;
-    canvas.drawCircle(
-      Offset(center.dx - size * 0.25, center.dy),
-      weightRadius,
+    // Left weight
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(center.dx - size * 0.25, center.dy),
+          width: size * 0.15,
+          height: size * 0.4,
+        ),
+        Radius.circular(size * 0.03),
+      ),
       paint,
     );
-    canvas.drawCircle(
-      Offset(center.dx + size * 0.25, center.dy),
-      weightRadius,
+    
+    // Right weight
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(center.dx + size * 0.25, center.dy),
+          width: size * 0.15,
+          height: size * 0.4,
+        ),
+        Radius.circular(size * 0.03),
+      ),
       paint,
     );
     
@@ -610,50 +639,85 @@ class CustomMarkerGenerator {
       ..strokeCap = StrokeCap.round;
     
     canvas.drawLine(
-      Offset(center.dx - size * 0.1, center.dy),
-      Offset(center.dx + size * 0.1, center.dy),
+      Offset(center.dx - size * 0.17, center.dy),
+      Offset(center.dx + size * 0.17, center.dy),
       barPaint,
     );
     
-    // Handle grips
+    // Grip details on the bar
     final gripPaint = Paint()
+      ..color = paint.color.withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size * 0.03;
+    
+    for (int i = -2; i <= 2; i++) {
+      if (i != 0) {
+        canvas.drawLine(
+          Offset(center.dx + i * size * 0.04, center.dy - size * 0.08),
+          Offset(center.dx + i * size * 0.04, center.dy + size * 0.08),
+          gripPaint,
+        );
+      }
+    }
+    
+    // Weight plates details
+    final platePaint = Paint()
       ..color = paint.color.withOpacity(0.6)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.04;
+      ..strokeWidth = size * 0.02;
     
-    for (int i = -1; i <= 1; i += 2) {
-      canvas.drawLine(
-        Offset(center.dx + i * size * 0.03, center.dy - size * 0.06),
-        Offset(center.dx + i * size * 0.03, center.dy + size * 0.06),
-        gripPaint,
-      );
-    }
+    // Left weight details
+    canvas.drawLine(
+      Offset(center.dx - size * 0.25, center.dy - size * 0.15),
+      Offset(center.dx - size * 0.25, center.dy + size * 0.15),
+      platePaint,
+    );
+    
+    // Right weight details
+    canvas.drawLine(
+      Offset(center.dx + size * 0.25, center.dy - size * 0.15),
+      Offset(center.dx + size * 0.25, center.dy + size * 0.15),
+      platePaint,
+    );
   }
 
-  static void _drawDefaultIconLarge(Canvas canvas, Offset center, double size, Paint paint) {
+  static void _drawDefaultIcon(Canvas canvas, Offset center, double size, Paint paint) {
     final tagWidth = size * 0.6;
     final tagHeight = size * 0.5;
     
+    // Large tag that fills most of the space
     final tagPath = Path();
     tagPath.moveTo(center.dx - tagWidth * 0.5, center.dy - tagHeight * 0.5);
-    tagPath.lineTo(center.dx + tagWidth * 0.3, center.dy - tagHeight * 0.5);
+    tagPath.lineTo(center.dx + tagWidth * 0.2, center.dy - tagHeight * 0.5);
     tagPath.lineTo(center.dx + tagWidth * 0.5, center.dy);
-    tagPath.lineTo(center.dx + tagWidth * 0.3, center.dy + tagHeight * 0.5);
+    tagPath.lineTo(center.dx + tagWidth * 0.2, center.dy + tagHeight * 0.5);
     tagPath.lineTo(center.dx - tagWidth * 0.5, center.dy + tagHeight * 0.5);
     tagPath.close();
     
-    paint.style = PaintingStyle.fill;
     canvas.drawPath(tagPath, paint);
     
-    // Tag hole
+    // Large tag hole
     final holePaint = Paint()
       ..color = paint.color.withOpacity(0.4)
       ..style = PaintingStyle.fill;
     
     canvas.drawCircle(
-      Offset(center.dx - tagWidth * 0.2, center.dy),
+      Offset(center.dx - tagWidth * 0.25, center.dy),
       size * 0.08,
       holePaint,
+    );
+    
+    // Tag string/cord
+    final stringPaint = Paint()
+      ..color = paint.color.withOpacity(0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size * 0.03
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawLine(
+      Offset(center.dx - tagWidth * 0.25, center.dy - size * 0.08),
+      Offset(center.dx - tagWidth * 0.25, center.dy - tagHeight * 0.7),
+      stringPaint,
     );
   }
 }
