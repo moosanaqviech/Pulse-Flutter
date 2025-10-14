@@ -1,21 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/deal.dart';
+import '../models/saved_payment_method.dart';
 
 class PaymentService extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
+  List<SavedPaymentMethod> _savedPaymentMethods = [];
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  List<SavedPaymentMethod> get savedPaymentMethods => _savedPaymentMethods;
 
-  /// Process payment using Stripe Payment Sheet
+  /// Load saved payment methods for user
+  Future<void> loadSavedPaymentMethods(String userId) async {
+    try {
+      _setLoading(true);
+      
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('payment_methods')
+          .where('isActive', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _savedPaymentMethods = querySnapshot.docs
+          .map((doc) => SavedPaymentMethod.fromFirestore(doc))
+          .toList();
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading saved payment methods: $e');
+      _setError('Failed to load saved payment methods');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Process payment with option to save card
   Future<bool> processPayment({
     required Deal deal,
     required String userId,
     required String purchaseId,
+    bool saveCard = false,
+    String? savedPaymentMethodId,
   }) async {
     try {
       _setLoading(true);
@@ -23,15 +55,32 @@ class PaymentService extends ChangeNotifier {
 
       debugPrint('🔵 Starting payment process for deal: ${deal.id}');
       debugPrint('🔵 Purchase ID: $purchaseId');
+      debugPrint('🔵 Save card: $saveCard');
+      debugPrint('🔵 Using saved method: $savedPaymentMethodId');
 
-      // Step 1: Create Payment Intent via Cloud Function
-      final clientSecret = await _createPaymentIntent(
-        dealId: deal.id,
-        userId: userId,
-        purchaseId: purchaseId,
-        amount: deal.dealPrice,
-        description: '${deal.title} at ${deal.businessName}',
-      );
+      String? clientSecret;
+
+      if (savedPaymentMethodId != null) {
+        // Use saved payment method for 1-tap purchase
+        clientSecret = await _createPaymentIntentWithSavedMethod(
+          dealId: deal.id,
+          userId: userId,
+          purchaseId: purchaseId,
+          amount: deal.dealPrice,
+          description: '${deal.title} at ${deal.businessName}',
+          paymentMethodId: savedPaymentMethodId,
+        );
+      } else {
+        // Create new payment intent (with option to save)
+        clientSecret = await _createPaymentIntent(
+          dealId: deal.id,
+          userId: userId,
+          purchaseId: purchaseId,
+          amount: deal.dealPrice,
+          description: '${deal.title} at ${deal.businessName}',
+          setupFutureUsage: saveCard,
+        );
+      }
 
       if (clientSecret == null) {
         _setError('Failed to initialize payment');
@@ -40,31 +89,50 @@ class PaymentService extends ChangeNotifier {
 
       debugPrint('✅ Payment Intent created');
 
-      // Step 2: Initialize Payment Sheet
+      // If using saved payment method, process automatically
+      if (savedPaymentMethodId != null) {
+        return await _processAutomaticPayment(clientSecret);
+      }
+
+      // Initialize Payment Sheet for new payment
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           paymentIntentClientSecret: clientSecret,
           merchantDisplayName: 'Pulse',
           style: ThemeMode.system,
+          
           // Enable Google Pay
           googlePay: const PaymentSheetGooglePay(
-            merchantCountryCode: 'US',
-            currencyCode: 'USD',
+            merchantCountryCode: 'CA', // Changed to Canada to match CAD
+            currencyCode: 'CAD',
             testEnv: true, // Set to false for production
           ),
+          
           // Enable Apple Pay (iOS only)
           applePay: const PaymentSheetApplePay(
-            merchantCountryCode: 'US',
+            merchantCountryCode: 'CA', // Changed to Canada to match CAD
+          ),
+          
+          // Customization
+          primaryButtonLabel: saveCard ? 'Pay & Save Card' : 'Pay Now',
+          billingDetailsCollectionConfiguration: const BillingDetailsCollectionConfiguration(
+            email: CollectionMode.always,
+            name: CollectionMode.always,
           ),
         ),
       );
 
       debugPrint('✅ Payment Sheet initialized');
 
-      // Step 3: Present Payment Sheet
+      // Present Payment Sheet
       await Stripe.instance.presentPaymentSheet();
 
       debugPrint('✅ Payment completed successfully');
+
+      // If user chose to save card, save the payment method
+      if (saveCard) {
+        await _savePaymentMethodAfterPayment(userId, clientSecret);
+      }
 
       return true;
 
@@ -81,6 +149,26 @@ class PaymentService extends ChangeNotifier {
     }
   }
 
+  /// Process automatic payment with saved payment method
+  Future<bool> _processAutomaticPayment(String clientSecret) async {
+    try {
+      // Confirm payment intent on backend
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('confirmPaymentIntent');
+
+      final response = await callable.call({
+        'clientSecret': clientSecret,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      return data['success'] == true;
+
+    } catch (e) {
+      debugPrint('❌ Error in automatic payment: $e');
+      throw e;
+    }
+  }
+
   /// Create Payment Intent using Firebase Cloud Function
   Future<String?> _createPaymentIntent({
     required String dealId,
@@ -88,25 +176,32 @@ class PaymentService extends ChangeNotifier {
     required String purchaseId,
     required double amount,
     required String description,
+    bool setupFutureUsage = false,
   }) async {
     try {
       debugPrint('🔵 Creating payment intent...');
-      debugPrint('   Deal ID: $dealId');
-      debugPrint('   Purchase ID: $purchaseId');
-      debugPrint('   Amount: \$${amount.toStringAsFixed(2)}');
 
-      // Call Firebase Cloud Function
+      // Use the appropriate function based on whether we need to save the card
+      final functionName = setupFutureUsage 
+          ? 'createPaymentIntentWithSetup' 
+          : 'createPaymentIntent';
+
       final callable = FirebaseFunctions.instance
-          .httpsCallable('createPaymentIntent');
+          .httpsCallable(functionName);
 
-      final response = await callable.call({
+      final params = {
         'dealId': dealId,
         'purchaseId': purchaseId,
         'amount': amount,
-        'currency': 'usd',
-      });
+        'currency': 'cad', // Match your existing currency
+      };
 
-      debugPrint('✅ Payment intent response received');
+      // Add setupFutureUsage only if true
+      if (setupFutureUsage) {
+        params['setupFutureUsage'] = true;
+      }
+
+      final response = await callable.call(params);
 
       final data = response.data as Map<String, dynamic>;
       
@@ -128,11 +223,148 @@ class PaymentService extends ChangeNotifier {
     }
   }
 
+  /// Create Payment Intent with saved payment method
+  Future<String?> _createPaymentIntentWithSavedMethod({
+    required String dealId,
+    required String userId,
+    required String purchaseId,
+    required double amount,
+    required String description,
+    required String paymentMethodId,
+  }) async {
+    try {
+      debugPrint('🔵 Creating payment intent with saved method...');
+
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('createPaymentIntentWithSavedMethod');
+
+      final response = await callable.call({
+        'dealId': dealId,
+        'purchaseId': purchaseId,
+        'amount': amount,
+        'currency': 'cad', // Match your existing currency
+        'paymentMethodId': paymentMethodId,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      
+      if (data['success'] == true) {
+        return data['clientSecret'] as String?;
+      } else {
+        _setError(data['error']?.toString() ?? 'Failed to create payment intent');
+        return null;
+      }
+
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('❌ Cloud Function Error: ${e.code} - ${e.message}');
+      _setError(_getFirebaseFunctionError(e));
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error creating payment intent with saved method: $e');
+      _setError('Network error: Unable to connect to payment server');
+      return null;
+    }
+  }
+
+  /// Save payment method after successful payment
+  Future<void> _savePaymentMethodAfterPayment(String userId, String clientSecret) async {
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('savePaymentMethodAfterPayment');
+
+      await callable.call({
+        'userId': userId,
+        'clientSecret': clientSecret,
+      });
+
+      // Reload saved payment methods
+      await loadSavedPaymentMethods(userId);
+
+    } catch (e) {
+      debugPrint('❌ Error saving payment method: $e');
+    }
+  }
+
+  /// Delete saved payment method
+  Future<bool> deleteSavedPaymentMethod(String userId, String paymentMethodId) async {
+    try {
+      _setLoading(true);
+
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('deleteSavedPaymentMethod');
+
+      final response = await callable.call({
+        'userId': userId,
+        'paymentMethodId': paymentMethodId,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      
+      if (data['success'] == true) {
+        // Remove from local list
+        _savedPaymentMethods.removeWhere((pm) => pm.stripePaymentMethodId == paymentMethodId);
+        notifyListeners();
+        return true;
+      }
+
+      return false;
+
+    } catch (e) {
+      debugPrint('❌ Error deleting payment method: $e');
+      _setError('Failed to delete payment method');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Set default payment method
+  Future<bool> setDefaultPaymentMethod(String userId, String paymentMethodId) async {
+    try {
+      _setLoading(true);
+
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('setDefaultPaymentMethod');
+
+      final response = await callable.call({
+        'userId': userId,
+        'paymentMethodId': paymentMethodId,
+      });
+
+      final data = response.data as Map<String, dynamic>;
+      
+      if (data['success'] == true) {
+        // Update local list - set all to non-default, then set selected as default
+        for (int i = 0; i < _savedPaymentMethods.length; i++) {
+          _savedPaymentMethods[i] = _savedPaymentMethods[i].copyWith(isDefault: false);
+        }
+        
+        final index = _savedPaymentMethods.indexWhere(
+          (pm) => pm.stripePaymentMethodId == paymentMethodId
+        );
+        
+        if (index != -1) {
+          _savedPaymentMethods[index] = _savedPaymentMethods[index].copyWith(isDefault: true);
+        }
+        
+        notifyListeners();
+        return true;
+      }
+
+      return false;
+
+    } catch (e) {
+      debugPrint('❌ Error setting default payment method: $e');
+      _setError('Failed to set default payment method');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   /// Get user-friendly error message from StripeException
   String _getStripeErrorMessage(StripeException e) {
     final error = e.error;
-    
-    // Check for common error codes
     final code = error.code?.toString().toLowerCase() ?? '';
     
     if (code.contains('cancel') || e.error.message?.contains('cancel') == true) {
@@ -163,7 +395,6 @@ class PaymentService extends ChangeNotifier {
       return 'Error processing payment. Please try again.';
     }
     
-    // Return localized message or generic error
     return error.localizedMessage ?? 
            error.message ?? 
            'Payment failed. Please try again.';

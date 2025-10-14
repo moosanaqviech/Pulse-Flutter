@@ -629,3 +629,730 @@ export const redeemVoucher = onCall(async (request) => {
     );
   }
 });
+
+// Add these functions to your existing functions/src/index.ts file
+
+/**
+ * Create Payment Intent with Setup Future Usage (Enhanced version)
+ */
+// Add these functions to your existing functions/src/index.ts file
+
+/**
+ * Create Payment Intent with Setup Future Usage (Enhanced version)
+ */
+export const createPaymentIntentWithSetup = onCall(async (request) => {
+  try {
+    // Verify authentication
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const dealId = String(data.dealId || "");
+    const purchaseId = String(data.purchaseId || "");
+    const amount = Number(data.amount || 0);
+    const currency = String(data.currency || "cad").toLowerCase();
+    const setupFutureUsage = Boolean(data.setupFutureUsage || false);
+    const userId = String(request.auth.uid);
+
+    // Validate inputs
+    if (!dealId || dealId.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "dealId is required"
+      );
+    }
+
+    if (!purchaseId || purchaseId.length === 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "purchaseId is required"
+      );
+    }
+
+    if (amount <= 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Amount must be greater than 0"
+      );
+    }
+
+    // Validate currency
+    const validCurrencies = ["usd", "cad"];
+    if (!validCurrencies.includes(currency)) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Invalid currency. Must be one of: ${validCurrencies.join(", ")}`
+      );
+    }
+
+    // Get deal from Firestore
+    const dealDoc = await admin.firestore()
+      .collection("deals")
+      .doc(dealId)
+      .get();
+
+    if (!dealDoc.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Deal not found"
+      );
+    }
+
+    const deal = dealDoc.data();
+    if (!deal) {
+      throw new HttpsError("not-found", "Deal data not found");
+    }
+
+    // Verify deal availability
+    if (!deal.isActive) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Deal is no longer active"
+      );
+    }
+
+    if (deal.remainingQuantity <= 0) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Deal is sold out"
+      );
+    }
+
+    if (Date.now() > deal.expirationTime) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Deal has expired"
+      );
+    }
+
+    // Verify amount
+    const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
+    const providedAmount = Math.round(amount * 100);
+
+    if (Math.abs(expectedAmount - providedAmount) > 1) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
+      );
+    }
+
+    // Get user data - but don't require it to exist for consumers
+    const userDoc = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .get();
+
+    const userData = userDoc.exists ? userDoc.data() : null;
+    
+    // For consumers, use auth email if available
+    const userEmail = userData?.email || request.auth.token.email || "unknown";
+
+    // Create or get Stripe customer if setup for future usage
+    let customerId: string | undefined;
+    if (setupFutureUsage) {
+      if (userData?.stripeCustomerId) {
+        customerId = userData.stripeCustomerId;
+      } else {
+        // Create new Stripe customer
+        const customer = await stripe.customers.create({
+          email: userEmail,
+          metadata: {
+            userId: userId,
+            userType: userData ? "business" : "consumer",
+          },
+        });
+        
+        customerId = customer.id;
+        
+        // Save customer ID to user record - create if doesn't exist
+        try {
+          if (userData) {
+            // Update existing business user
+            await admin.firestore()
+              .collection("users")
+              .doc(userId)
+              .update({
+                stripeCustomerId: customerId,
+              });
+          } else {
+            // Create new consumer user record
+            await admin.firestore()
+              .collection("users")
+              .doc(userId)
+              .set({
+                email: userEmail,
+                stripeCustomerId: customerId,
+                userType: "consumer",
+                createdAt: admin.firestore.Timestamp.now(),
+              });
+          }
+        } catch (error: any) {
+          console.warn("Could not save customer ID to user record:", error.message);
+          // Continue anyway - the customer exists in Stripe
+        }
+      }
+    }
+
+    // Create Payment Intent parameters
+    const paymentIntentParams: any = {
+      amount: expectedAmount,
+      currency: currency,
+      metadata: {
+        userId: userId,
+        dealId: dealId,
+        purchaseId: purchaseId,
+        dealTitle: String(deal.title || "Unknown"),
+        businessName: String(deal.businessName || "Unknown"),
+        userEmail: userEmail,
+      },
+      description: `Purchase: ${deal.title} at ${deal.businessName}`,
+    };
+
+    // Add customer and setup future usage if requested
+    if (setupFutureUsage && customerId) {
+      paymentIntentParams.customer = customerId;
+      paymentIntentParams.setup_future_usage = "off_session";
+    }
+
+    // Create Payment Intent
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
+
+    // Reserve inventory
+    await admin.firestore()
+      .collection("deals")
+      .doc(dealId)
+      .update({
+        remainingQuantity: admin.firestore.FieldValue.increment(-1),
+      });
+
+    // Update purchase with stripePaymentIntentId
+    await admin.firestore()
+      .collection("purchases")
+      .doc(purchaseId)
+      .update({
+        stripePaymentIntentId: paymentIntent.id,
+      });
+
+    console.log("Payment Intent created with setup:", paymentIntent.id, "Purchase ID:", purchaseId);
+
+    return {
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    };
+  } catch (error: any) {
+    console.error("Error creating payment intent with setup:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to create payment intent: " + String(error.message || "Unknown error")
+    );
+  }
+});
+
+/**
+ * Create Payment Intent with Saved Payment Method
+ */
+export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const dealId = String(data.dealId || "");
+    const purchaseId = String(data.purchaseId || "");
+    const amount = Number(data.amount || 0);
+    const currency = String(data.currency || "cad").toLowerCase();
+    const paymentMethodId = String(data.paymentMethodId || "");
+    const userId = String(request.auth.uid);
+
+    // Validation
+    if (!paymentMethodId || paymentMethodId.length === 0) {
+      throw new HttpsError("invalid-argument", "paymentMethodId is required");
+    }
+
+    // Validate currency
+    const validCurrencies = ["usd", "cad"];
+    if (!validCurrencies.includes(currency)) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Invalid currency. Must be one of: ${validCurrencies.join(", ")}`
+      );
+    }
+
+    // Get user's Stripe customer ID - check if user exists first
+    const userDoc = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .get();
+
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "User not found - please save a payment method first");
+    }
+
+    const userData = userDoc.data()!;
+    if (!userData?.stripeCustomerId) {
+      throw new HttpsError("failed-precondition", "User has no Stripe customer ID");
+    }
+
+    // Get deal from Firestore
+    const dealDoc = await admin.firestore()
+      .collection("deals")
+      .doc(dealId)
+      .get();
+
+    if (!dealDoc.exists) {
+      throw new HttpsError("not-found", "Deal not found");
+    }
+
+    const deal = dealDoc.data()!;
+
+    // Verify deal availability
+    if (!deal.isActive) {
+      throw new HttpsError("failed-precondition", "Deal is no longer active");
+    }
+
+    if (deal.remainingQuantity <= 0) {
+      throw new HttpsError("resource-exhausted", "Deal is sold out");
+    }
+
+    if (Date.now() > deal.expirationTime) {
+      throw new HttpsError("failed-precondition", "Deal has expired");
+    }
+
+    // Verify amount
+    const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
+    const providedAmount = Math.round(amount * 100);
+
+    if (Math.abs(expectedAmount - providedAmount) > 1) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
+      );
+    }
+
+    // Verify payment method belongs to customer
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    if (paymentMethod.customer !== userData.stripeCustomerId) {
+      throw new HttpsError("permission-denied", "Payment method does not belong to user");
+    }
+
+    // For consumers, use auth email if available
+    const userEmail = userData?.email || request.auth.token.email || "unknown";
+
+    // Create Payment Intent with saved payment method
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: expectedAmount,
+      currency: currency,
+      customer: userData.stripeCustomerId,
+      payment_method: paymentMethodId,
+      confirmation_method: "manual",
+      confirm: true,
+      return_url: "https://your-app.com/return", // You can customize this
+      metadata: {
+        userId: userId,
+        dealId: dealId,
+        purchaseId: purchaseId,
+        dealTitle: String(deal.title || "Unknown"),
+        businessName: String(deal.businessName || "Unknown"),
+        userEmail: userEmail,
+      },
+      description: `Purchase: ${deal.title} at ${deal.businessName}`,
+    });
+
+    // Reserve inventory
+    await admin.firestore()
+      .collection("deals")
+      .doc(dealId)
+      .update({
+        remainingQuantity: admin.firestore.FieldValue.increment(-1),
+      });
+
+    // Update purchase with stripePaymentIntentId
+    await admin.firestore()
+      .collection("purchases")
+      .doc(purchaseId)
+      .update({
+        stripePaymentIntentId: paymentIntent.id,
+      });
+
+    console.log("Payment Intent with saved method created:", paymentIntent.id);
+
+    return {
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      status: paymentIntent.status,
+    };
+  } catch (error: any) {
+    console.error("Error creating payment intent with saved method:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    // Handle Stripe-specific errors
+    if (error.type === "StripeCardError") {
+      throw new HttpsError("invalid-argument", error.message);
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to create payment intent: " + String(error.message || "Unknown error")
+    );
+  }
+});
+
+/**
+ * Save Payment Method After Payment
+ */
+export const savePaymentMethodAfterPayment = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const userId = String(request.auth.uid);
+    const clientSecret = String(data.clientSecret || "");
+
+    if (!clientSecret) {
+      throw new HttpsError("invalid-argument", "clientSecret is required");
+    }
+
+    // Extract payment intent ID from client secret
+    const paymentIntentId = clientSecret.split("_secret_")[0];
+
+    // Retrieve payment intent from Stripe
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (!paymentIntent.payment_method) {
+      throw new HttpsError("failed-precondition", "No payment method attached to payment intent");
+    }
+
+    // Get payment method details
+    const paymentMethod = await stripe.paymentMethods.retrieve(
+      paymentIntent.payment_method as string
+    );
+
+    if (paymentMethod.type !== "card" || !paymentMethod.card) {
+      throw new HttpsError("invalid-argument", "Only card payment methods can be saved");
+    }
+
+    // Get user's Stripe customer ID
+    const userDoc = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .get();
+
+    const userData = userDoc.data();
+    if (!userData?.stripeCustomerId) {
+      throw new HttpsError("failed-precondition", "User has no Stripe customer ID");
+    }
+
+    // Attach payment method to customer (if not already attached)
+    if (paymentMethod.customer !== userData.stripeCustomerId) {
+      await stripe.paymentMethods.attach(paymentMethod.id, {
+        customer: userData.stripeCustomerId,
+      });
+    }
+
+    // Check if this card is already saved
+    const existingMethodQuery = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("payment_methods")
+      .where("cardLast4", "==", paymentMethod.card.last4)
+      .where("cardBrand", "==", paymentMethod.card.brand)
+      .where("isActive", "==", true)
+      .get();
+
+    if (!existingMethodQuery.empty) {
+      console.log("Payment method already exists for user");
+      return { success: true, message: "Payment method already saved" };
+    }
+
+    // Check if this is the user's first saved card
+    const existingMethodsQuery = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("payment_methods")
+      .where("isActive", "==", true)
+      .get();
+
+    const isFirstCard = existingMethodsQuery.empty;
+
+    // Save payment method to Firestore
+    const paymentMethodDoc = {
+      userId: userId,
+      stripePaymentMethodId: paymentMethod.id,
+      cardLast4: paymentMethod.card.last4,
+      cardBrand: paymentMethod.card.brand,
+      cardExpMonth: paymentMethod.card.exp_month.toString().padStart(2, "0"),
+      cardExpYear: paymentMethod.card.exp_year.toString(),
+      cardholderName: paymentMethod.billing_details.name || null,
+      isDefault: isFirstCard, // First card becomes default
+      isActive: true,
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now(),
+    };
+
+    await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("payment_methods")
+      .add(paymentMethodDoc);
+
+    console.log("Payment method saved successfully for user:", userId);
+
+    return {
+      success: true,
+      message: "Payment method saved successfully",
+    };
+  } catch (error: any) {
+    console.error("Error saving payment method:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to save payment method: " + String(error.message || "Unknown error")
+    );
+  }
+});
+
+/**
+ * Delete Saved Payment Method
+ */
+export const deleteSavedPaymentMethod = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const userId = String(request.auth.uid);
+    const paymentMethodId = String(data.paymentMethodId || "");
+
+    if (!paymentMethodId) {
+      throw new HttpsError("invalid-argument", "paymentMethodId is required");
+    }
+
+    // Find the payment method in Firestore
+    const paymentMethodQuery = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("payment_methods")
+      .where("stripePaymentMethodId", "==", paymentMethodId)
+      .where("isActive", "==", true)
+      .get();
+
+    if (paymentMethodQuery.empty) {
+      throw new HttpsError("not-found", "Payment method not found");
+    }
+
+    const paymentMethodDoc = paymentMethodQuery.docs[0];
+    const paymentMethodData = paymentMethodDoc.data();
+
+    // Detach payment method from Stripe customer
+    try {
+      await stripe.paymentMethods.detach(paymentMethodId);
+    } catch (stripeError: any) {
+      console.warn("Error detaching payment method from Stripe:", stripeError.message);
+      // Continue with Firestore deletion even if Stripe fails
+    }
+
+    // Mark as inactive in Firestore
+    await paymentMethodDoc.ref.update({
+      isActive: false,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    // If this was the default payment method, make another one default
+    if (paymentMethodData.isDefault) {
+      const otherMethodsQuery = await admin.firestore()
+        .collection("users")
+        .doc(userId)
+        .collection("payment_methods")
+        .where("isActive", "==", true)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get();
+
+      if (!otherMethodsQuery.empty) {
+        await otherMethodsQuery.docs[0].ref.update({
+          isDefault: true,
+          updatedAt: admin.firestore.Timestamp.now(),
+        });
+      }
+    }
+
+    console.log("Payment method deleted successfully:", paymentMethodId);
+
+    return {
+      success: true,
+      message: "Payment method deleted successfully",
+    };
+  } catch (error: any) {
+    console.error("Error deleting payment method:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to delete payment method: " + String(error.message || "Unknown error")
+    );
+  }
+});
+
+/**
+ * Confirm Payment Intent (for automatic payments)
+ */
+export const confirmPaymentIntent = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const clientSecret = String(data.clientSecret || "");
+
+    if (!clientSecret) {
+      throw new HttpsError("invalid-argument", "clientSecret is required");
+    }
+
+    // Extract payment intent ID from client secret
+    const paymentIntentId = clientSecret.split("_secret_")[0];
+
+    // Retrieve and confirm payment intent
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (paymentIntent.status === "succeeded") {
+      return { success: true, status: "succeeded" };
+    }
+
+    if (paymentIntent.status === "requires_confirmation") {
+      const confirmedPaymentIntent = await stripe.paymentIntents.confirm(paymentIntentId);
+      return { success: true, status: confirmedPaymentIntent.status };
+    }
+
+    return { success: false, status: paymentIntent.status };
+
+  } catch (error: any) {
+    console.error("Error confirming payment intent:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to confirm payment intent: " + String(error.message || "Unknown error")
+    );
+  }
+});
+
+/**
+ * Set Default Payment Method
+ */
+export const setDefaultPaymentMethod = onCall(async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const userId = String(request.auth.uid);
+    const paymentMethodId = String(data.paymentMethodId || "");
+
+    if (!paymentMethodId) {
+      throw new HttpsError("invalid-argument", "paymentMethodId is required");
+    }
+
+    // Use transaction to ensure consistency
+    await admin.firestore().runTransaction(async (transaction) => {
+      // Find the payment method to set as default
+      const targetMethodQuery = await admin.firestore()
+        .collection("users")
+        .doc(userId)
+        .collection("payment_methods")
+        .where("stripePaymentMethodId", "==", paymentMethodId)
+        .where("isActive", "==", true)
+        .get();
+
+      if (targetMethodQuery.empty) {
+        throw new HttpsError("not-found", "Payment method not found");
+      }
+
+      // Clear current default
+      const currentDefaultQuery = await admin.firestore()
+        .collection("users")
+        .doc(userId)
+        .collection("payment_methods")
+        .where("isDefault", "==", true)
+        .where("isActive", "==", true)
+        .get();
+
+      // Update current default to false
+      currentDefaultQuery.docs.forEach((doc) => {
+        transaction.update(doc.ref, {
+          isDefault: false,
+          updatedAt: admin.firestore.Timestamp.now(),
+        });
+      });
+
+      // Set new default
+      const targetMethodDoc = targetMethodQuery.docs[0];
+      transaction.update(targetMethodDoc.ref, {
+        isDefault: true,
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+    });
+
+    console.log("Default payment method updated:", paymentMethodId);
+
+    return {
+      success: true,
+      message: "Default payment method updated successfully",
+    };
+  } catch (error: any) {
+    console.error("Error setting default payment method:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to set default payment method: " + String(error.message || "Unknown error")
+    );
+  }
+});

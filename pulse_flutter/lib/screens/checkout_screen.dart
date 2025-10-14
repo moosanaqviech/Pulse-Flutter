@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/deal.dart';
+import '../models/saved_payment_method.dart';
 import '../services/payment_service.dart';
-import '../services/purchase_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/custom_button.dart';
-import 'voucher_detail_screen.dart';
+import '../services/purchase_service.dart';
+import '../screens/voucher_detail_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final Deal deal;
@@ -21,7 +21,24 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
+  bool _saveCard = false;
+  SavedPaymentMethod? _selectedPaymentMethod;
   bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedPaymentMethods();
+  }
+
+  Future<void> _loadSavedPaymentMethods() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final paymentService = Provider.of<PaymentService>(context, listen: false);
+    
+    if (authService.currentUser != null) {
+      await paymentService.loadSavedPaymentMethods(authService.currentUser!.uid);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,36 +47,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         title: const Text('Checkout'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Deal Summary Card
-            _buildDealSummary(),
-            
-            const SizedBox(height: 24),
-            
-            // Payment Method Info Card
-            _buildPaymentMethodInfo(),
-            
-            const SizedBox(height: 16),
-            
-            // Security Notice
-            _buildSecurityNotice(),
-            
-            const SizedBox(height: 24),
-            
-            // Purchase Button
-            _buildPurchaseButton(),
-            
-            const SizedBox(height: 16),
-            
-            // Terms and conditions
-            _buildTerms(),
-          ],
-        ),
+      body: Consumer<PaymentService>(
+        builder: (context, paymentService, child) {
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDealSummary(),
+                      const SizedBox(height: 24),
+                      _buildPaymentMethodSelection(paymentService),
+                      const SizedBox(height: 24),
+                      _buildOrderSummary(),
+                    ],
+                  ),
+                ),
+              ),
+              _buildBottomSection(paymentService),
+            ],
+          );
+        },
       ),
     );
   }
@@ -76,122 +88,57 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Order Summary',
+              widget.deal.title,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            
-            const SizedBox(height: 12),
-            
-            // Deal image if available
-            if (widget.deal.imageUrl != null && widget.deal.imageUrl!.isNotEmpty)
-              Container(
-                height: 120,
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  image: DecorationImage(
-                    image: NetworkImage(widget.deal.imageUrl!),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            
-            Text(
-              widget.deal.title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            
-            const SizedBox(height: 4),
-            
+            const SizedBox(height: 8),
             Text(
               widget.deal.businessName,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade600,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.grey[600],
               ),
             ),
-            
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 12),
-            
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Deal Price:'),
-                Text(
-                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Regular Price',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    Text(
+                      '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        decoration: TextDecoration.lineThrough,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            
-            if (widget.deal.originalPrice > widget.deal.dealPrice) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Original Price:',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  Text(
-                    '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      decoration: TextDecoration.lineThrough,
-                      color: Colors.grey.shade600,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Deal Price',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'You Save:',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600,
+                    Text(
+                      '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '\$${(widget.deal.originalPrice - widget.deal.dealPrice).toStringAsFixed(2)} (${widget.deal.discountPercentage}%)',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 12),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total:',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -201,7 +148,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _buildPaymentMethodInfo() {
+  Widget _buildPaymentMethodSelection(PaymentService paymentService) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -218,36 +165,422 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 16),
+            
+            // Saved payment methods
+            if (paymentService.savedPaymentMethods.isNotEmpty) ...[
+              Text(
+                'Saved Cards',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              ...paymentService.savedPaymentMethods.map((paymentMethod) {
+                return _buildSavedPaymentMethodTile(paymentMethod);
+              }),
+              
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+            ],
+            
+            // New payment method option
+            _buildNewPaymentMethodTile(),
+            
+            // Save card checkbox (only show for new payment)
+            if (_selectedPaymentMethod == null) ...[
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                title: const Text('Save this card for future purchases'),
+                subtitle: const Text('Enable 1-tap checkout for faster payments'),
+                value: _saveCard,
+                onChanged: (value) {
+                  setState(() {
+                    _saveCard = value ?? false;
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavedPaymentMethodTile(SavedPaymentMethod paymentMethod) {
+    final isSelected = _selectedPaymentMethod?.id == paymentMethod.id;
+    final isExpired = paymentMethod.isExpired;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: isExpired ? null : () {
+          setState(() {
+            _selectedPaymentMethod = isSelected ? null : paymentMethod;
+          });
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected 
+                  ? Theme.of(context).primaryColor 
+                  : (isExpired ? Colors.red.shade300 : Colors.grey.shade300),
+              width: isSelected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            color: isExpired 
+                ? Colors.red.shade50 
+                : (isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : null),
+          ),
+          child: Row(
+            children: [
+              Text(
+                paymentMethod.cardBrandIcon,
+                style: const TextStyle(fontSize: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      paymentMethod.displayText,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: isExpired ? Colors.red.shade700 : null,
+                      ),
+                    ),
+                    Text(
+                      isExpired 
+                          ? 'Expired ${paymentMethod.cardExpMonth}/${paymentMethod.cardExpYear}'
+                          : 'Expires ${paymentMethod.cardExpMonth}/${paymentMethod.cardExpYear}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isExpired ? Colors.red.shade600 : Colors.grey[600],
+                      ),
+                    ),
+                    if (paymentMethod.isDefault)
+                      Text(
+                        'Default',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (isSelected && !isExpired)
+                Icon(
+                  Icons.check_circle,
+                  color: Theme.of(context).primaryColor,
+                ),
+              if (!isExpired)
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _deleteSavedPaymentMethod(paymentMethod);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete Card'),
+                    ),
+                  ],
+                  child: const Icon(Icons.more_vert),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewPaymentMethodTile() {
+    final isSelected = _selectedPaymentMethod == null;
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedPaymentMethod = null;
+        });
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected 
+                ? Theme.of(context).primaryColor 
+                : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+          color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.1) : null,
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.add_card, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Use New Card',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    'Credit/Debit Card, Google Pay, Apple Pay',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: Theme.of(context).primaryColor,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderSummary() {
+    final savings = widget.deal.originalPrice - widget.deal.dealPrice;
+    
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Order Summary',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Item Price'),
+                Text('\$${widget.deal.originalPrice.toStringAsFixed(2)}'),
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Discount'),
+                Text(
+                  '-\$${savings.toStringAsFixed(2)}',
+                  style: TextStyle(color: Colors.green.shade600),
+                ),
+              ],
+            ),
+            
+            const Divider(height: 24),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ],
+            ),
             
             const SizedBox(height: 16),
             
-            const Row(
-              children: [
-                Icon(Icons.credit_card, color: Colors.blue),
-                SizedBox(width: 12),
-                Text('Credit / Debit Card'),
-              ],
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.savings, color: Colors.green.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You save \$${savings.toStringAsFixed(2)} with this deal!',
+                      style: TextStyle(
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSection(PaymentService paymentService) {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade300,
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Show error if failed to load saved payment methods
+            if (paymentService.errorMessage != null && 
+                paymentService.errorMessage!.contains('Failed to load saved payment methods'))
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange.shade600),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Failed to load saved payment methods',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Show other payment errors
+            if (paymentService.errorMessage != null && 
+                !paymentService.errorMessage!.contains('Failed to load saved payment methods'))
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error, color: Colors.red.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        paymentService.errorMessage!,
+                        style: TextStyle(color: Colors.red.shade700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: (_isProcessing || paymentService.isLoading) 
+                    ? null 
+                    : _handlePurchase,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                child: (_isProcessing || paymentService.isLoading)
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Processing...'),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_selectedPaymentMethod != null)
+                            const Icon(Icons.flash_on, size: 20),
+                          Text(
+                            _selectedPaymentMethod != null
+                                ? '1-Tap Pay \$${widget.deal.dealPrice.toStringAsFixed(2)}'
+                                : 'Pay \$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
             
             const SizedBox(height: 12),
             
-            const Row(
-              children: [
-                Icon(Icons.account_balance_wallet, color: Colors.green),
-                SizedBox(width: 12),
-                Text('Google Pay / Apple Pay'),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
             Text(
-              'You will be able to choose your payment method in the next step.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                fontStyle: FontStyle.italic,
+              _selectedPaymentMethod != null
+                  ? 'Payment will be processed using your saved ${_selectedPaymentMethod!.cardBrand.toUpperCase()} ending in ${_selectedPaymentMethod!.cardLast4}'
+                  : 'Secure payment powered by Stripe',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -255,127 +588,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _buildSecurityNotice() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.security,
-            color: Colors.blue.shade700,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Secure Payment',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Your payment information is encrypted and processed securely by Stripe',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPurchaseButton() {
-    return Consumer2<PaymentService, AuthService>(
-      builder: (context, paymentService, authService, _) {
-        final isLoading = _isProcessing || paymentService.isLoading;
-        final isDisabled = widget.deal.isSoldOut || widget.deal.isExpired;
-        
-        return Column(
-          children: [
-            CustomButton(
-              text: isDisabled 
-                  ? (widget.deal.isSoldOut ? 'Sold Out' : 'Expired')
-                  : 'Continue to Payment',
-              onPressed: (!isLoading && !isDisabled) ? _processPurchase : null,
-              isLoading: isLoading,
-              backgroundColor: isDisabled ? Colors.grey : null,
-            ),
-            
-            if (isDisabled) ...[
-              const SizedBox(height: 12),
-              Text(
-                widget.deal.isSoldOut 
-                    ? 'This deal is currently sold out'
-                    : 'This deal has expired',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildTerms() {
-    return Column(
-      children: [
-        const Text(
-          'By completing this purchase, you agree to our Terms of Service and understand that:',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '• Deals are non-refundable\n'
-          '• Voucher expires on the date specified\n'
-          '• One voucher per transaction\n'
-          '• Cannot be combined with other offers',
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _processPurchase() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final paymentService = Provider.of<PaymentService>(context, listen: false);
-    final purchaseService = Provider.of<PurchaseService>(context, listen: false);
-    
-    if (authService.currentUser == null) {
-      _showErrorDialog('Please sign in to complete your purchase');
-      return;
-    }
+  Future<void> _handlePurchase() async {
+    if (_isProcessing) return;
 
     setState(() {
       _isProcessing = true;
     });
 
     try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final paymentService = Provider.of<PaymentService>(context, listen: false);
+      final purchaseService = Provider.of<PurchaseService>(context, listen: false);
+
       // Step 1: Create purchase record
       debugPrint('📝 Creating purchase record...');
       final purchaseId = await purchaseService.createPurchase(
@@ -389,16 +613,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       debugPrint('✅ Purchase record created: $purchaseId');
 
-      // Step 2: Process Stripe payment
-      debugPrint('💳 Processing Stripe payment...');
+      // Step 2: Process payment (with or without saved method)
+      debugPrint('💳 Processing payment...');
       final paymentSuccess = await paymentService.processPayment(
         deal: widget.deal,
         userId: authService.currentUser!.uid,
         purchaseId: purchaseId,
+        saveCard: _saveCard,
+        savedPaymentMethodId: _selectedPaymentMethod?.stripePaymentMethodId,
       );
 
       if (!paymentSuccess) {
-        debugPrint('❌ Stripe payment failed');
+        debugPrint('❌ Payment failed');
         if (mounted) {
           final errorMsg = paymentService.errorMessage;
           if (errorMsg != null && !errorMsg.contains('cancel')) {
@@ -408,7 +634,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      debugPrint('✅ Stripe payment successful');
+      debugPrint('✅ Payment successful');
 
       // Step 3: Confirm payment and generate QR code
       debugPrint('🔄 Confirming payment and generating QR code...');
@@ -446,52 +672,63 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  Future<void> _deleteSavedPaymentMethod(SavedPaymentMethod paymentMethod) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Payment Method'),
+        content: Text('Are you sure you want to delete ${paymentMethod.displayText}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final paymentService = Provider.of<PaymentService>(context, listen: false);
+
+      final success = await paymentService.deleteSavedPaymentMethod(
+        authService.currentUser!.uid,
+        paymentMethod.stripePaymentMethodId,
+      );
+
+      if (success && mounted) {
+        // If deleted payment method was selected, clear selection
+        if (_selectedPaymentMethod?.id == paymentMethod.id) {
+          setState(() {
+            _selectedPaymentMethod = null;
+          });
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${paymentMethod.displayText} deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.error, color: Colors.red, size: 32),
-            SizedBox(width: 12),
-            Text('Payment Failed'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(message),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Your card has not been charged',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        title: const Text('Payment Error'),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Try Again'),
+            child: const Text('OK'),
           ),
         ],
       ),
