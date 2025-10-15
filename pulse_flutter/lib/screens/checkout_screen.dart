@@ -21,7 +21,7 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  bool _saveCard = false;
+  bool _saveCard = true; // Changed from false to true - default selected
   SavedPaymentMethod? _selectedPaymentMethod;
   bool _isProcessing = false;
 
@@ -192,17 +192,55 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             // Save card checkbox (only show for new payment)
             if (_selectedPaymentMethod == null) ...[
               const SizedBox(height: 16),
-              CheckboxListTile(
-                title: const Text('Save this card for future purchases'),
-                subtitle: const Text('Enable 1-tap checkout for faster payments'),
-                value: _saveCard,
-                onChanged: (value) {
-                  setState(() {
-                    _saveCard = value ?? false;
-                  });
-                },
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: EdgeInsets.zero,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _saveCard ? Colors.green.shade50 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _saveCard ? Colors.green.shade200 : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+                child: CheckboxListTile(
+                  title: const Text(
+                    'Save this card for future purchases',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.flash_on,
+                            size: 16,
+                            color: _saveCard ? Colors.green.shade600 : Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Enable 1-tap checkout for faster payments',
+                              style: TextStyle(
+                                color: _saveCard ? Colors.green.shade700 : Colors.grey.shade600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  value: _saveCard,
+                  onChanged: (value) {
+                    setState(() {
+                      _saveCard = value ?? false;
+                    });
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: Colors.green,
+                ),
               ),
             ],
           ],
@@ -359,7 +397,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildOrderSummary() {
-    final savings = widget.deal.originalPrice - widget.deal.dealPrice;
+    final dealPrice = widget.deal.dealPrice;
+    final originalPrice = widget.deal.originalPrice;
+    final savings = originalPrice - dealPrice;
+    final taxRate = _getTaxRate();
+    final taxAmount = dealPrice * taxRate;
+    final totalPrice = dealPrice + taxAmount;
     
     return Card(
       elevation: 4,
@@ -372,33 +415,74 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Order Summary',
+              'Order Summary TEST',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
             
+            // Original price (if there's a discount)
+            if (savings > 0) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Original Price'),
+                  Text(
+                    '\$${originalPrice.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      decoration: TextDecoration.lineThrough,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            
+            // Deal price
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Item Price'),
-                Text('\$${widget.deal.originalPrice.toStringAsFixed(2)}'),
+                const Text('Deal Price'),
+                Text('\$${dealPrice.toStringAsFixed(2)}'),
               ],
             ),
             
             const SizedBox(height: 8),
             
+            // Tax
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Discount'),
+                Text('Tax (HST)', style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                )),
                 Text(
-                  '-\$${savings.toStringAsFixed(2)}',
-                  style: TextStyle(color: Colors.green.shade600),
+                  '\$${taxAmount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
+            
+            // Discount amount (if applicable)
+            if (savings > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Discount'),
+                  Text(
+                    '-\$${savings.toStringAsFixed(2)}',
+                    style: TextStyle(color: Colors.green.shade600),
+                  ),
+                ],
+              ),
+            ],
             
             const Divider(height: 24),
             
@@ -412,7 +496,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 ),
                 Text(
-                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                  '\$${totalPrice.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).primaryColor,
@@ -436,7 +520,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'You save \$${savings.toStringAsFixed(2)} with this deal!',
+                      savings > 0 
+                          ? 'You save \$${savings.toStringAsFixed(2)} with this deal!'
+                          : 'Great deal price!',
                       style: TextStyle(
                         color: Colors.green.shade700,
                         fontWeight: FontWeight.w600,
@@ -453,6 +539,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildBottomSection(PaymentService paymentService) {
+    final dealPrice = widget.deal.dealPrice;
+    final taxAmount = dealPrice * _getTaxRate();
+    final totalPrice = dealPrice + taxAmount;
+    
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -559,8 +649,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             const Icon(Icons.flash_on, size: 20),
                           Text(
                             _selectedPaymentMethod != null
-                                ? '1-Tap Pay \$${widget.deal.dealPrice.toStringAsFixed(2)}'
-                                : 'Pay \$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                                ? '1-Tap Pay \$${totalPrice.toStringAsFixed(2)}'
+                                : 'Pay \$${totalPrice.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -735,3 +825,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 }
+double _getTaxRate() {
+    // You can implement province-specific tax rates here
+    // For now, using Ontario HST as default
+    return 0.13; // 13% HST for Ontario
+  }
