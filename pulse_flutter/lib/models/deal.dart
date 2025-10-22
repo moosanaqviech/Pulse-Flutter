@@ -12,6 +12,7 @@ class Deal {
   final int totalQuantity;
   final int remainingQuantity;
   final String businessName;
+  final String businessAddress;
   final int expirationTime;
   final String? imageUrl;
   final bool isActive;
@@ -28,6 +29,7 @@ class Deal {
     required this.totalQuantity,
     required this.remainingQuantity,
     required this.businessName,
+    required this.businessAddress,
     required this.expirationTime,
     this.imageUrl,
     this.isActive = true,
@@ -102,6 +104,7 @@ class Deal {
       totalQuantity: data['totalQuantity'] ?? 0,
       remainingQuantity: data['remainingQuantity'] ?? 0,
       businessName: data['businessName'] ?? '',
+      businessAddress: data['businessAddress']?? '',
       expirationTime: data['expirationTime'] ?? 0,
       imageUrl: data['imageUrl'],
       isActive: data['isActive'] ?? true,
@@ -156,6 +159,7 @@ class Deal {
       totalQuantity: totalQuantity ?? this.totalQuantity,
       remainingQuantity: remainingQuantity ?? this.remainingQuantity,
       businessName: businessName ?? this.businessName,
+      businessAddress: businessAddress ?? this.businessAddress,
       expirationTime: expirationTime ?? this.expirationTime,
       imageUrl: imageUrl ?? this.imageUrl,
       isActive: isActive ?? this.isActive,
@@ -175,4 +179,6 @@ class Deal {
 
   @override
   int get hashCode => id.hashCode;
+
+  
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:pulse_flutter/mixins/distance_calculator_mixin.dart';
 
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
@@ -25,7 +26,7 @@ class DealBottomSheet extends StatefulWidget {
   State<DealBottomSheet> createState() => _DealBottomSheetState();
 }
 
-class _DealBottomSheetState extends State<DealBottomSheet> {
+class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculatorMixin{
   bool _isProcessing1Tap = false;
   SavedPaymentMethod? _defaultCard;
   bool _hasSavedCards = false;
@@ -34,9 +35,16 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
   @override
   void initState() {
     super.initState();
+    initDistanceCalculation(widget.deal, autoRefresh: true);
     _loadSavedPaymentMethods();
   }
 
+@override
+  void dispose() {
+    // Clean up distance calculation resources
+    disposeDistanceCalculation();
+    super.dispose();
+  }
   Future<void> _loadSavedPaymentMethods() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final paymentService = Provider.of<PaymentService>(context, listen: false);
@@ -99,12 +107,14 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
                 children: [
                   // Deal Image
                   if (widget.deal.imageUrl != null && widget.deal.imageUrl!.isNotEmpty)
-                    _buildDealImage(),
+                    //_buildDealImage(),
+                    _buildHeroImage(context),
+                    _buildTextContent(context),
                   
                   const SizedBox(height: 16),
                   
                   // Deal Title and Business
-                  Text(
+                  /*(Text(
                     widget.deal.title,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -139,7 +149,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 20),*/
                   
                   // Price Section with Tax Breakdown
                   _buildPriceSectionWithTax(context),
@@ -147,7 +157,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
                   const SizedBox(height: 20),
                   
                   // Deal Info
-                  _buildDealInfo(context),
+                  //_buildDealInfo(context),
                   
                   const SizedBox(height: 24),
                   
@@ -282,7 +292,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
+          const Text(
             'Total',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -396,7 +406,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
+                  const Text(
                     'Total',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
@@ -429,6 +439,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
       ),
       child: Column(
         children: [
+          
           // Expiration
           Row(
             children: [
@@ -586,6 +597,242 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
     }
   }
 
+  
+  Widget _buildHeroImage(BuildContext context) {
+    final remainingHours = _getRemainingHours();
+    return Stack(
+      children: [
+        AspectRatio(
+          aspectRatio: 4 / 5, // Keep this!
+          child: widget.deal.imageUrl != null
+              ? CachedNetworkImage(
+                  imageUrl: widget.deal.imageUrl!,
+                  fit: BoxFit.cover,
+                  
+                  errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
+                )
+              : _buildCategoryPlaceholder(), // Show category-based placeholder
+        ),
+        
+        // Gradient overlay for text readability
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.3), // Subtle shadow
+                ],
+                stops: [0.6, 1.0],
+              ),
+            ),
+          ),
+        ),
+        
+        // TOP-LEFT: Discount badge (BIGGEST DRAW)
+        Positioned(
+          top: 12,
+          left: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.red.shade600,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              '${widget.deal.discountPercentage}% OFF',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16, // Bigger!
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+        
+        // TOP-RIGHT: Favorite button
+        if (true)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              //child: _buildFavoriteButton(context),
+            ),
+          ),
+        
+        // BOTTOM-LEFT: Urgency indicator
+
+        if (widget.deal.remainingQuantity <= 5 || remainingHours < 1)
+          Positioned(
+            bottom: 12,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade600,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.local_fire_department, 
+                    size: 14, 
+                    color: Colors.white
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.deal.remainingQuantity <= 5
+                        ? 'Only ${widget.deal.remainingQuantity} left!'
+                        : 'Ending soon!',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTextContent(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16), // More breathing room
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title - 2 lines max
+           
+          
+          
+          const SizedBox(height: 6),
+          // Business name with subtle styling
+          Text(
+            widget.deal.businessName,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+
+          const SizedBox(height: 6),
+           InkWell(
+          onTap: () => _showAddressOptions(),
+          child: 
+          // Business address with subtle styling
+          Text(
+            widget.deal.businessAddress,
+            style: TextStyle(
+              color: Colors.blue.shade600,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+           ),
+          /*const SizedBox(height: 6),
+          buildDistanceWidget(
+            widget.deal,
+            onRefresh: () => refreshDistance(widget.deal),
+          ),*/
+          // Price row - PROMINENT
+          Row(
+            children: [
+              // Original price - crossed out
+              Text(
+                '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade500,
+                  decoration: TextDecoration.lineThrough,
+                  decorationThickness: 2,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // New price - BIG
+              Text(
+                '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 24, // Much bigger
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade700,
+                ),
+              ),
+              
+             
+              const Spacer(),
+            
+             
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            
+             children: [
+          // Business name with subtle styling
+          Expanded(
+          child : Text(
+            widget.deal.description,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          )
+             ]
+          )
+        ],
+      ),
+    );
+  }
+
+  // Helper: Category-based placeholder when no image
+  Widget _buildCategoryPlaceholder() {
+    final categoryImages = {
+      'Restaurant': '🍽️',
+      'Cafe': '☕',
+      'Bar': '🍺',
+      'Shop': '🛍️',
+    };
+    
+    return Center(
+      child: Text(
+        categoryImages[widget.deal.category] ?? '🎉',
+        style: const TextStyle(fontSize: 64),
+      ),
+    );
+  }
+
   Future<void> _handle1TapPurchase(double totalPrice) async {
     if (_defaultCard == null || _isProcessing1Tap) return;
 
@@ -683,4 +930,143 @@ class _DealBottomSheetState extends State<DealBottomSheet> {
     // For now, using Ontario HST as default
     return 0.13; // 13% HST for Ontario
   }
+
+  void _showAddressOptions() {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) => Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.deal.businessName,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.deal.businessAddress,
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 20),
+          
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _openDirections();
+                  },
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Directions'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _copyAddress();
+                  },
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Copy'),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+        ],
+      ),
+    ),
+  );
 }
+
+// Open directions in maps
+void _openDirections() {
+  // You can implement with url_launcher package
+  final encodedAddress = Uri.encodeComponent(widget.deal.businessAddress);
+  final mapsUrl = 'https://www.google.com/maps/search/?api=1&query=$encodedAddress';
+  
+  // For now, show a snackbar
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('Opening directions to ${widget.deal.businessName}'),
+      duration: const Duration(seconds: 2),
+    ),
+  );
+  
+  // With url_launcher, you would do:
+  // if (await canLaunchUrl(Uri.parse(mapsUrl))) {
+  //   await launchUrl(Uri.parse(mapsUrl));
+  // }
+}
+
+// Copy address to clipboard
+void _copyAddress() {
+  // You can implement with flutter/services package
+  // Clipboard.setData(ClipboardData(text: widget.deal.businessAddress));
+  
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Address copied to clipboard'),
+      duration: Duration(seconds: 2),
+    ),
+  );
+}
+
+/// Get remaining time in hours
+double _getRemainingHours() {
+  final now = DateTime.now().millisecondsSinceEpoch;
+  final remainingMillis = widget.deal.expirationTime - now;
+  
+  if (remainingMillis <= 0) {
+    return 0.0; // Expired
+  }
+  
+  return remainingMillis / (1000 * 60 * 60); // Convert to hours
+}
+
+/// Get formatted time remaining string
+String _getFormattedTimeRemaining() {
+  final remainingHours = _getRemainingHours();
+  
+  if (remainingHours <= 0) {
+    return 'Expired';
+  } else if (remainingHours < 1) {
+    final minutes = (remainingHours * 60).round();
+    return '${minutes}m left';
+  } else if (remainingHours < 24) {
+    return '${remainingHours.toStringAsFixed(1)}h left';
+  } else {
+    final days = (remainingHours / 24).floor();
+    final hours = (remainingHours % 24).round();
+    if (hours == 0) {
+      return '${days}d left';
+    } else {
+      return '${days}d ${hours}h left';
+    }
+  }
+}
+
+/// Get color based on urgency
+Color _getTimeColor() {
+  final remainingHours = _getRemainingHours();
+  
+  if (remainingHours <= 0) return Colors.grey;
+  if (remainingHours <= 1) return Colors.red;      // Critical
+  if (remainingHours <= 6) return Colors.orange;   // Urgent  
+  if (remainingHours <= 24) return Colors.amber;   // Soon
+  return Colors.green;                              // Normal
+}
+
+
+
+}
+

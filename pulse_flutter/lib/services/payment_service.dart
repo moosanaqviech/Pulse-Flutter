@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
+import '../utils/payment_debugger.dart';
 
 class PaymentService extends ChangeNotifier {
   bool _isLoading = false;
@@ -42,114 +43,136 @@ class PaymentService extends ChangeNotifier {
   }
 
   /// Process payment with option to save card
-  Future<bool> processPayment({
-    required Deal deal,
-    required String userId,
-    required String purchaseId,
-    bool saveCard = false,
-    String? savedPaymentMethodId,
-  }) async {
-    try {
-      _setLoading(true);
-      _clearError();
+ Future<bool> processPayment({
+  required Deal deal,
+  required String userId,
+  required String purchaseId,
+  bool saveCard = false,
+  String? savedPaymentMethodId,
+}) async {
+  try {
+    _setLoading(true);
+    _clearError();
 
-      debugPrint('🔵 Starting payment process for deal: ${deal.id}');
-      debugPrint('🔵 Purchase ID: $purchaseId');
-      debugPrint('🔵 Save card: $saveCard');
-      debugPrint('🔵 Using saved method: $savedPaymentMethodId');
+    // Add debugging
+    PaymentDebugger.logStep('Starting payment service', 
+      details: 'Deal: ${deal.id}, Amount: \$${deal.dealPrice}');
 
-      String? clientSecret;
+    String? clientSecret;
 
-      if (savedPaymentMethodId != null) {
-        // Use saved payment method for 1-tap purchase
-        clientSecret = await _createPaymentIntentWithSavedMethod(
-          dealId: deal.id,
-          userId: userId,
-          purchaseId: purchaseId,
-          amount: deal.dealPrice,
-          description: '${deal.title} at ${deal.businessName}',
-          paymentMethodId: savedPaymentMethodId,
-        );
-      } else {
-        // Create new payment intent (with option to save)
-        clientSecret = await _createPaymentIntent(
-          dealId: deal.id,
-          userId: userId,
-          purchaseId: purchaseId,
-          amount: deal.dealPrice,
-          description: '${deal.title} at ${deal.businessName}',
-          setupFutureUsage: saveCard,
-        );
-      }
-
-      if (clientSecret == null) {
-        _setError('Failed to initialize payment');
-        return false;
-      }
-
-      debugPrint('✅ Payment Intent created');
-
-      // If using saved payment method, process automatically
-      if (savedPaymentMethodId != null) {
-        return await _processAutomaticPayment(clientSecret);
-      }
-
-      // Initialize Payment Sheet for new payment
-      await Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
-          merchantDisplayName: 'Pulse',
-          style: ThemeMode.system,
-          
-          // Enable Google Pay
-          googlePay: const PaymentSheetGooglePay(
-            merchantCountryCode: 'CA', // Changed to Canada to match CAD
-            currencyCode: 'CAD',
-            testEnv: true, // Set to false for production
-          ),
-          
-          // Enable Apple Pay (iOS only)
-          applePay: const PaymentSheetApplePay(
-            merchantCountryCode: 'CA', // Changed to Canada to match CAD
-          ),
-          
-          // Customization
-          primaryButtonLabel: saveCard ? 'Pay & Save Card' : 'Pay Now',
-          billingDetailsCollectionConfiguration: const BillingDetailsCollectionConfiguration(
-            email: CollectionMode.always,
-            name: CollectionMode.always,
-          ),
-        ),
+    if (savedPaymentMethodId != null) {
+      // Use saved payment method for 1-tap purchase
+      PaymentDebugger.startTimer('CREATE_PAYMENT_INTENT_SAVED');
+      PaymentDebugger.logStep('Creating payment intent with saved method');
+      
+      clientSecret = await _createPaymentIntentWithSavedMethod(
+        dealId: deal.id,
+        userId: userId,
+        purchaseId: purchaseId,
+        amount: deal.dealPrice,
+        description: '${deal.title} at ${deal.businessName}',
+        paymentMethodId: savedPaymentMethodId,
       );
-
-      debugPrint('✅ Payment Sheet initialized');
-
-      // Present Payment Sheet
-      await Stripe.instance.presentPaymentSheet();
-
-      debugPrint('✅ Payment completed successfully');
-
-      // If user chose to save card, save the payment method
-      if (saveCard) {
-        await _savePaymentMethodAfterPayment(userId, clientSecret);
-      }
-
-      return true;
-
-    } on StripeException catch (e) {
-      debugPrint('❌ Stripe Error: ${e.error.localizedMessage}');
-      _setError(_getStripeErrorMessage(e));
-      return false;
-    } catch (e) {
-      debugPrint('❌ Payment Error: $e');
-      _setError('Payment failed: ${e.toString()}');
-      return false;
-    } finally {
-      _setLoading(false);
+      
+      PaymentDebugger.endTimer('CREATE_PAYMENT_INTENT_SAVED');
+    } else {
+      // Create new payment intent
+      PaymentDebugger.startTimer('CREATE_PAYMENT_INTENT_NEW');
+      PaymentDebugger.logStep('Creating new payment intent');
+      
+      clientSecret = await _createPaymentIntent(
+        dealId: deal.id,
+        userId: userId,
+        purchaseId: purchaseId,
+        amount: deal.dealPrice,
+        description: '${deal.title} at ${deal.businessName}',
+        setupFutureUsage: saveCard,
+      );
+      
+      PaymentDebugger.endTimer('CREATE_PAYMENT_INTENT_NEW');
     }
-  }
 
-  /// Process automatic payment with saved payment method
+    if (clientSecret == null) {
+      _setError('Failed to initialize payment');
+      return false;
+    }
+
+    PaymentDebugger.logStep('Payment Intent created successfully');
+
+    // If using saved payment method, process automatically
+    if (savedPaymentMethodId != null) {
+      PaymentDebugger.startTimer('AUTOMATIC_PAYMENT');
+      PaymentDebugger.logStep('Processing automatic payment');
+      
+      final result = await _processAutomaticPayment(clientSecret);
+      
+      PaymentDebugger.endTimer('AUTOMATIC_PAYMENT');
+      return result;
+    }
+
+    // Initialize Payment Sheet for new payment
+    PaymentDebugger.startTimer('INIT_PAYMENT_SHEET');
+    PaymentDebugger.logStep('Initializing payment sheet');
+    
+    await Stripe.instance.initPaymentSheet(
+      paymentSheetParameters: SetupPaymentSheetParameters(
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'Pulse',
+        style: ThemeMode.system,
+        googlePay: const PaymentSheetGooglePay(
+          merchantCountryCode: 'CA',
+          currencyCode: 'CAD',
+          testEnv: true,
+        ),
+        applePay: const PaymentSheetApplePay(
+          merchantCountryCode: 'CA',
+        ),
+        primaryButtonLabel: saveCard ? 'Pay & Save Card' : 'Pay Now',
+        billingDetailsCollectionConfiguration: const BillingDetailsCollectionConfiguration(
+          email: CollectionMode.always,
+          name: CollectionMode.always,
+        ),
+      ),
+    );
+
+    PaymentDebugger.endTimer('INIT_PAYMENT_SHEET');
+    PaymentDebugger.logStep('Payment sheet initialized');
+
+    // Present Payment Sheet
+    PaymentDebugger.startTimer('PRESENT_PAYMENT_SHEET');
+    PaymentDebugger.logStep('Presenting payment sheet to user');
+    
+    await Stripe.instance.presentPaymentSheet();
+    
+    PaymentDebugger.endTimer('PRESENT_PAYMENT_SHEET');
+    PaymentDebugger.logStep('Payment sheet completed successfully');
+
+    // If user chose to save card, save the payment method
+    if (saveCard) {
+      PaymentDebugger.startTimer('SAVE_PAYMENT_METHOD');
+      PaymentDebugger.logStep('Saving payment method for future use');
+      
+      await _savePaymentMethodAfterPayment(userId, clientSecret);
+      
+      PaymentDebugger.endTimer('SAVE_PAYMENT_METHOD');
+    }
+
+    return true;
+
+  } on StripeException catch (e) {
+    PaymentDebugger.logStep('Stripe error', details: e.error.localizedMessage);
+    _setError(_getStripeErrorMessage(e));
+    return false;
+  } catch (e) {
+    PaymentDebugger.logStep('Payment service error', details: e.toString());
+    _setError('Payment failed: ${e.toString()}');
+    return false;
+  } finally {
+    _setLoading(false);
+  }
+}
+
+/// Process automatic payment with saved payment method
   Future<bool> _processAutomaticPayment(String clientSecret) async {
     try {
       // Confirm payment intent on backend

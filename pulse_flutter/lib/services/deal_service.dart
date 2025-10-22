@@ -47,7 +47,7 @@ class DealService extends ChangeNotifier {
   Future<void> _loadSampleDeals() async {
     final now = DateTime.now().millisecondsSinceEpoch;
     
-    _deals = [
+   /* _deals = [
       Deal(
         id: '1',
         title: 'Coffee Special',
@@ -144,7 +144,7 @@ class DealService extends ChangeNotifier {
         isActive: true,
       ),
     ];
-    notifyListeners();
+    notifyListeners();*/
   }
 
   // Get deals by category
