@@ -23,7 +23,7 @@ class DealService extends ChangeNotifier {
       final QuerySnapshot querySnapshot = await _firestore
           .collection('deals')
           .where('isActive', isEqualTo: true)
-          .where('expirationTime', isGreaterThan: DateTime.now().millisecondsSinceEpoch)
+          .where('expirationTime', isGreaterThan: Timestamp.now())
           .get();
 
       _deals = querySnapshot.docs

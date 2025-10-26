@@ -447,7 +447,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Expires: ${_formatExpirationDate()}',
+                  'Expires: ${(widget.deal.expirationTime)}',
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
               ),
@@ -603,7 +603,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
     return Stack(
       children: [
         AspectRatio(
-          aspectRatio: 4 / 5, // Keep this!
+          aspectRatio: 2 / 3, // Keep this!
           child: widget.deal.imageUrl != null
               ? CachedNetworkImage(
                   imageUrl: widget.deal.imageUrl!,
@@ -920,10 +920,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
     );
   }
 
-  String _formatExpirationDate() {
-    final date = DateTime.fromMillisecondsSinceEpoch(widget.deal.expirationTime);
-    return DateFormat('MMM d, yyyy').format(date);
-  }
+  
 
   double _getTaxRate() {
     // You can implement province-specific tax rates here

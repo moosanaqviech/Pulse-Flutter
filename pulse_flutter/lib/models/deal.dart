@@ -91,7 +91,9 @@ class Deal {
   // Create Deal from Firestore document
   factory Deal.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+    print('🔍 Loading deal: ${doc.id}');
+    print('🔍 expirationTime raw: ${data['expirationTime']}');
+    print('🔍 expirationTime type: ${data['expirationTime'].runtimeType}');
     return Deal(
       id: doc.id,
       title: data['title'] ?? '',
@@ -105,7 +107,7 @@ class Deal {
       remainingQuantity: data['remainingQuantity'] ?? 0,
       businessName: data['businessName'] ?? '',
       businessAddress: data['businessAddress']?? '',
-      expirationTime: data['expirationTime'] ?? 0,
+      expirationTime: _parseExpirationTime(data['expirationTime']),
       imageUrl: data['imageUrl'],
       isActive: data['isActive'] ?? true,
     );
@@ -130,6 +132,37 @@ class Deal {
     };
   }
 
+
+static int _parseExpirationTime(dynamic value) {
+    try {
+      if (value == null) {
+        return DateTime.now().add(Duration(days: 7)).millisecondsSinceEpoch;
+      }
+      
+      if (value is int) {
+        return value;  // Old format
+      }
+      
+      if (value is Timestamp) {
+        return value.toDate().millisecondsSinceEpoch;  // NEW format
+      }
+      
+      if (value is String) {
+        return DateTime.parse(value).millisecondsSinceEpoch;
+      }
+      
+      if (value is DateTime) {
+        return value.millisecondsSinceEpoch;
+      }
+      
+      print('⚠️ Unknown expirationTime type: ${value.runtimeType}');
+      return DateTime.now().add(Duration(days: 7)).millisecondsSinceEpoch;
+      
+    } catch (e) {
+      print('❌ Error parsing expirationTime: $e');
+      return DateTime.now().add(Duration(days: 7)).millisecondsSinceEpoch;
+    }
+  }
   // Create a copy with updated values
   Deal copyWith({
     String? id,
@@ -170,6 +203,8 @@ class Deal {
   String toString() {
     return 'Deal(id: $id, title: $title, businessName: $businessName, dealPrice: $dealPrice)';
   }
+
+
 
   @override
   bool operator ==(Object other) {
