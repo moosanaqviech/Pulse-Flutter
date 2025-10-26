@@ -16,6 +16,7 @@ class Deal {
   final int expirationTime;
   final String? imageUrl;
   final bool isActive;
+  final List<String> imageUrls; 
 
   Deal({
     required this.id,
@@ -32,6 +33,7 @@ class Deal {
     required this.businessAddress,
     required this.expirationTime,
     this.imageUrl,
+    this.imageUrls = const [],
     this.isActive = true,
   });
 
@@ -109,6 +111,9 @@ class Deal {
       businessAddress: data['businessAddress']?? '',
       expirationTime: _parseExpirationTime(data['expirationTime']),
       imageUrl: data['imageUrl'],
+      imageUrls: data['imageUrls'] != null 
+        ? List<String>.from(data['imageUrls']) 
+        : [],
       isActive: data['isActive'] ?? true,
     );
   }
@@ -128,6 +133,7 @@ class Deal {
       'businessName': businessName,
       'expirationTime': expirationTime,
       'imageUrl': imageUrl,
+      'imageUrls' : imageUrls,
       'isActive': isActive,
     };
   }
@@ -195,6 +201,7 @@ static int _parseExpirationTime(dynamic value) {
       businessAddress: businessAddress ?? this.businessAddress,
       expirationTime: expirationTime ?? this.expirationTime,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       isActive: isActive ?? this.isActive,
     );
   }

@@ -31,7 +31,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   SavedPaymentMethod? _defaultCard;
   bool _hasSavedCards = false;
   bool _isLoadingCards = false;
-
+  int _currentImageIndex = 0;
   @override
   void initState() {
     super.initState();
@@ -597,127 +597,317 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
     }
   }
 
-  
   Widget _buildHeroImage(BuildContext context) {
-    final remainingHours = _getRemainingHours();
-    return Stack(
-      children: [
-        AspectRatio(
-          aspectRatio: 2 / 3, // Keep this!
-          child: widget.deal.imageUrl != null
-              ? CachedNetworkImage(
-                  imageUrl: widget.deal.imageUrl!,
-                  fit: BoxFit.cover,
-                  
-                  errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
-                )
-              : _buildCategoryPlaceholder(), // Show category-based placeholder
-        ),
-        
-        // Gradient overlay for text readability
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.3), // Subtle shadow
-                ],
-                stops: [0.6, 1.0],
+  final images = widget.deal.imageUrls.isNotEmpty 
+    ? widget.deal.imageUrls 
+    : (widget.deal.imageUrl != null ? [widget.deal.imageUrl!] : []);
+  
+  print('🔍 Final images array: $images');
+  print('🔍 Final images length: ${images.length}');
+  
+  if (images.isEmpty) {
+    return _buildCategoryPlaceholder();
+  }
+  
+  return Stack(
+    children: [
+      // ✅ FIX: Add explicit height to PageView
+      SizedBox(
+        height: MediaQuery.of(context).size.width * (3 / 2), // For 2:3 aspect ratio
+        child: PageView.builder(
+          physics: const BouncingScrollPhysics(), // ✅ Enable scroll physics
+          itemCount: images.length,
+          onPageChanged: (index) {
+            print('📸 Swiped to image ${index + 1}/${images.length}');
+            setState(() => _currentImageIndex = index);
+          },
+          itemBuilder: (context, index) {
+            return CachedNetworkImage(
+              imageUrl: images[index],
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey.shade200,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
               ),
+              errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
+            );
+          },
+        ),
+      ),
+      
+      // Gradient overlay
+      Positioned.fill(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black.withOpacity(0.3),
+              ],
+              stops: [0.6, 1.0],
             ),
           ),
         ),
-        
-        // TOP-LEFT: Discount badge (BIGGEST DRAW)
+      ),
+      
+      // TOP-LEFT: Discount badge
+      Positioned(
+        top: 12,
+        left: 12,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.shade600,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            '${widget.deal.discountPercentage}% OFF',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ),
+      
+      // TOP-RIGHT: Image counter
+      if (images.length > 1)
         Positioned(
           top: 12,
-          left: 12,
+          right: 12,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.red.shade600,
+              color: Colors.black54,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
             child: Text(
-              '${widget.deal.discountPercentage}% OFF',
+              '${_currentImageIndex + 1}/${images.length}',
               style: const TextStyle(
                 color: Colors.white,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
-                fontSize: 16, // Bigger!
-                letterSpacing: 0.5,
               ),
             ),
           ),
         ),
-        
-        // TOP-RIGHT: Favorite button
-        if (true)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                  ),
-                ],
+      
+      // BOTTOM-CENTER: Dot indicators
+      if (images.length > 1)
+        Positioned(
+          bottom: 16,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              images.length,
+              (index) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                    ? Colors.white
+                    : Colors.white54,
+                  boxShadow: _currentImageIndex == index
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 4,
+                        ),
+                      ]
+                    : null,
+                ),
               ),
-              //child: _buildFavoriteButton(context),
             ),
           ),
-        
-        // BOTTOM-LEFT: Urgency indicator
+        ),
+    ],
+  );
+}
+  
 
-        if (widget.deal.remainingQuantity <= 5 || remainingHours < 1)
-          Positioned(
-            bottom: 12,
-            left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade600,
-                borderRadius: BorderRadius.circular(16),
+ Widget _buildHeroImageNew(BuildContext context) {
+  final images = widget.deal.imageUrls.isNotEmpty 
+    ? widget.deal.imageUrls 
+    : (widget.deal.imageUrl != null ? [widget.deal.imageUrl!] : []);
+  
+  if (images.isEmpty) {
+    return _buildCategoryPlaceholder();
+  }
+  
+  final screenWidth = MediaQuery.of(context).size.width;
+  final imageHeight = screenWidth * 0.8; // ✅ 80% of screen width (not 2:3 ratio)
+  
+  return Stack(
+    children: [
+      SizedBox(
+        height: imageHeight,
+        width: screenWidth,
+        child: PageView.builder(
+          physics: const BouncingScrollPhysics(),
+          itemCount: images.length,
+          onPageChanged: (index) {
+            print('📸 Swiped to image ${index + 1}/${images.length}');
+            setState(() => _currentImageIndex = index);
+          },
+          itemBuilder: (context, index) {
+            return CachedNetworkImage(
+              imageUrl: images[index],
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey.shade200,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.local_fire_department, 
-                    size: 14, 
-                    color: Colors.white
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    widget.deal.remainingQuantity <= 5
-                        ? 'Only ${widget.deal.remainingQuantity} left!'
-                        : 'Ending soon!',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
+            );
+          },
+        ),
+      ),
+      
+      // Gradient overlay
+      Positioned.fill(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black.withOpacity(0.3),
+              ],
+              stops: [0.6, 1.0],
+            ),
+          ),
+        ),
+      ),
+      
+      // Discount badge
+      Positioned(
+        top: 12,
+        left: 12,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.shade600,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            '${widget.deal.discountPercentage}% OFF',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ),
+      
+      // Image counter
+      if (images.length > 1)
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_currentImageIndex + 1}/${images.length}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-      ],
+        ),
+      
+      // Dot indicators
+      if (images.length > 1)
+        Positioned(
+          bottom: 16,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              images.length,
+              (index) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                    ? Colors.white
+                    : Colors.white54,
+                  boxShadow: _currentImageIndex == index
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 4,
+                        ),
+                      ]
+                    : null,
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+  Widget _buildCategoryPlaceholder() {
+    return Container(
+      color: Colors.grey.shade200,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            widget.deal.categoryEmoji,
+            style: const TextStyle(fontSize: 64),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.deal.categoryDisplayName,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
-
+  
   Widget _buildTextContent(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16), // More breathing room
@@ -817,7 +1007,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   }
 
   // Helper: Category-based placeholder when no image
-  Widget _buildCategoryPlaceholder() {
+  Widget _buildCategoryPlaceholderOld() {
     final categoryImages = {
       'Restaurant': '🍽️',
       'Cafe': '☕',
@@ -1052,17 +1242,144 @@ String _getFormattedTimeRemaining() {
   }
 }
 
-/// Get color based on urgency
-Color _getTimeColor() {
-  final remainingHours = _getRemainingHours();
-  
-  if (remainingHours <= 0) return Colors.grey;
-  if (remainingHours <= 1) return Colors.red;      // Critical
-  if (remainingHours <= 6) return Colors.orange;   // Urgent  
-  if (remainingHours <= 24) return Colors.amber;   // Soon
-  return Colors.green;                              // Normal
+Widget _buildTitleSection(BuildContext context) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        widget.deal.title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      const SizedBox(height: 6),
+      Row(
+        children: [
+          Text(
+            widget.deal.categoryEmoji,
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.deal.businessName,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          // ✅ Distance badge
+          buildDistanceWidget(widget.deal),
+        ],
+      ),
+    ],
+  );
 }
 
+Widget _buildDescriptionSection(BuildContext context) {
+  return Container(
+    constraints: BoxConstraints(
+      maxHeight: 60, // ✅ Limit description height
+    ),
+    child: Text(
+      widget.deal.description,
+      style: Theme.of(context).textTheme.bodyMedium,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+    ),
+  );
+}
+
+Widget _buildPriceSection(BuildContext context) {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      children: [
+        // Price row
+        Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.deal.originalPrice != widget.deal.dealPrice) ...[
+                  Text(
+                    '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      decoration: TextDecoration.lineThrough,
+                      color: Colors.grey.shade500,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            if (widget.deal.discountPercentage > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${widget.deal.discountPercentage}% OFF',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Deal info row
+        Row(
+          children: [
+            Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Text(
+              _getFormattedTimeRemaining(),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Icon(Icons.inventory, size: 16, color: Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Text(
+              '${widget.deal.remainingQuantity} left',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
 
 }
