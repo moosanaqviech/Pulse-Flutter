@@ -7,6 +7,8 @@ import Stripe from "stripe";
 // Initialize Firebase Admin
 admin.initializeApp();
 
+
+
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "TEST", {
   apiVersion: "2025-09-30.clover",
@@ -96,7 +98,7 @@ export const createPaymentIntent = onCall(async (request) => {
       );
     }
 
-    if (Date.now() > deal.expirationTime) {
+    if (Date.now() > toMilliseconds(deal.expirationTime)) {
       throw new HttpsError(
         "failed-precondition",
         "Deal has expired"
@@ -348,6 +350,25 @@ export const stripeWebhook = onRequest(async (req, res) => {
     res.status(500).send(`Webhook handler failed: ${error.message}`);
   }
 });
+function toMilliseconds(value: any): number {
+  // If it's already a number (old format)
+  if (typeof value === 'number') {
+    return value;
+  }
+  
+  // If it's a Firestore Timestamp (new format)
+  if (value && typeof value.toMillis === 'function') {
+    return value.toMillis();
+  }
+  
+  // If it has _seconds property (Firestore Timestamp structure)
+  if (value && typeof value._seconds === 'number') {
+    return value._seconds * 1000 + Math.floor((value._nanoseconds || 0) / 1000000);
+  }
+  
+  // Fallback
+  return Date.now();
+}
 
 async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void> {
   console.log("Payment succeeded:", paymentIntent.id);
@@ -451,7 +472,7 @@ export const verifyVoucher = onCall(async (request) => {
 
     console.log("📄 Purchase verification:", {
       status: purchase.status,
-      isExpired: Date.now() > purchase.expirationTime,
+      isExpired: Date.now() > toMilliseconds(purchase.expirationTime),
       isRedeemed: purchase.status === "redeemed",
     });
 
@@ -472,7 +493,7 @@ export const verifyVoucher = onCall(async (request) => {
     }
 
     // Check if expired
-    if (Date.now() > purchase.expirationTime) {
+    if (Date.now() > toMilliseconds(purchase.expirationTime)) {
       throw new HttpsError(
         "failed-precondition",
         "Voucher has expired"
@@ -490,8 +511,10 @@ export const verifyVoucher = onCall(async (request) => {
       businessName: String(purchase.businessName || ""),
       amount: Number(purchase.amount || 0),
       status: String(purchase.status || ""),
-      purchaseTime: purchase.purchaseTime ? Number(purchase.purchaseTime) : Date.now(),
-      expirationTime: purchase.expirationTime ? Number(purchase.expirationTime) : Date.now(),
+      //purchaseTime: purchase.purchaseTime ? Number(purchase.purchaseTime) : Date.now(),
+      //expirationTime: purchase.expirationTime ? Number(purchase.expirationTime) : Date.now(),
+      purchaseTime: toMilliseconds(purchase.purchaseTime),  // 🔄 CHANGED
+      expirationTime: toMilliseconds(purchase.expirationTime),  // 🔄 CHANGED
       imageUrl: String(purchase.imageUrl || ""),
       qrCode: String(purchase.qrCode || ""),
       stripePaymentIntentId: String(purchase.stripePaymentIntentId || ""), // Added this field
@@ -579,7 +602,7 @@ export const redeemVoucher = onCall(async (request) => {
       }
 
       // Check if expired
-      if (Date.now() > purchase.expirationTime) {
+      if (Date.now() > toMilliseconds(purchase.expirationTime)) {
         throw new HttpsError(
           "failed-precondition",
           "Voucher has expired"
@@ -722,7 +745,7 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
       );
     }
 
-    if (Date.now() > deal.expirationTime) {
+    if (Date.now() > toMilliseconds(deal.expirationTime)) {
       throw new HttpsError(
         "failed-precondition",
         "Deal has expired"
@@ -928,7 +951,7 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
       throw new HttpsError("resource-exhausted", "Deal is sold out");
     }
 
-    if (Date.now() > deal.expirationTime) {
+    if (Date.now() > toMilliseconds(deal.expirationTime)) {
       throw new HttpsError("failed-precondition", "Deal has expired");
     }
 
@@ -1356,3 +1379,4 @@ export const setDefaultPaymentMethod = onCall(async (request) => {
     );
   }
 });
+

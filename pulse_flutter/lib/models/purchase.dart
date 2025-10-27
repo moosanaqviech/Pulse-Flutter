@@ -80,8 +80,8 @@ class Purchase {
       businessName: data['businessName'] ?? '',
       amount: (data['amount'] ?? 0.0).toDouble(),
       status: data['status'] ?? 'pending',
-      purchaseTime: data['purchaseTime'] ?? 0,
-      expirationTime: data['expirationTime'] ?? 0,
+      purchaseTime: _parseTimestampToInt(data['purchaseTime']),
+      expirationTime: _parseTimestampToInt(data['expirationTime']),
       qrCode: data['qrCode'],
       imageUrl: data['imageUrl'],
       dealSnapshot: data['dealSnapshot'] as Map<String, dynamic>?,
@@ -166,6 +166,20 @@ class Purchase {
       redeemedBy: redeemedBy ?? this.redeemedBy,
     );
   }
+
+  static int _parseTimestampToInt(dynamic value) {
+  if (value == null) return 0;
+  
+  if (value is int) {
+    return value;  // Old format
+  }
+  
+  if (value is Timestamp) {
+    return value.toDate().millisecondsSinceEpoch;  // New format
+  }
+  
+  return 0;
+}
 
   @override
   String toString() {

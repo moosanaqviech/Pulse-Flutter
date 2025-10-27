@@ -77,103 +77,71 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+ Widget build(BuildContext context) {
+  return Container(
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(20),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Handle bar
+        Container(
+          width: 40,
+          height: 4,
+          margin: const EdgeInsets.only(top: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade300,
+            borderRadius: BorderRadius.circular(2),
           ),
-          
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Deal Image
-                  if (widget.deal.imageUrl != null && widget.deal.imageUrl!.isNotEmpty)
-                    //_buildDealImage(),
-                    _buildHeroImage(context),
-                    _buildTextContent(context),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Deal Title and Business
-                  /*(Text(
-                    widget.deal.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  Row(
+        ),
+        
+        // ✅ KEY CHANGE: Image carousel at the TOP, outside scroll view
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ✅ Image carousel WITHOUT padding
+                if (widget.deal.imageUrl != null && widget.deal.imageUrl!.isNotEmpty)
+                  _buildHeroImage(context),
+                
+                // ✅ Rest of content WITH padding
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.deal.categoryEmoji,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.deal.businessName,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ),
+                      _buildTextContent(context),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Price Section with Tax Breakdown
+                      _buildPriceSectionWithTax(context),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // Purchase Buttons Section
+                      _buildPurchaseButtons(context),
+                      
+                      // Add bottom padding for safe area
+                      SizedBox(height: MediaQuery.of(context).padding.bottom),
                     ],
                   ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Description
-                  Text(
-                    widget.deal.description,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  
-                  const SizedBox(height: 20),*/
-                  
-                  // Price Section with Tax Breakdown
-                  _buildPriceSectionWithTax(context),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Deal Info
-                  //_buildDealInfo(context),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Purchase Buttons Section
-                  _buildPurchaseButtons(context),
-                  
-                  // Add bottom padding for safe area
-                  SizedBox(height: MediaQuery.of(context).padding.bottom),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
+
+
 
   Widget _buildDealImage() {
     return Card(
@@ -596,152 +564,164 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
       );
     }
   }
+// ============================================
+// FINAL WORKING VERSION - Replace your _buildHeroImage() with this
+// ============================================
 
-  Widget _buildHeroImage(BuildContext context) {
+Widget _buildHeroImage(BuildContext context) {
   final images = widget.deal.imageUrls.isNotEmpty 
     ? widget.deal.imageUrls 
     : (widget.deal.imageUrl != null ? [widget.deal.imageUrl!] : []);
-  
-  print('🔍 Final images array: $images');
-  print('🔍 Final images length: ${images.length}');
   
   if (images.isEmpty) {
     return _buildCategoryPlaceholder();
   }
   
-  return Stack(
-    children: [
-      // ✅ FIX: Add explicit height to PageView
-      SizedBox(
-        height: MediaQuery.of(context).size.width * (3 / 2), // For 2:3 aspect ratio
-        child: PageView.builder(
-          physics: const BouncingScrollPhysics(), // ✅ Enable scroll physics
-          itemCount: images.length,
-          onPageChanged: (index) {
-            print('📸 Swiped to image ${index + 1}/${images.length}');
-            setState(() => _currentImageIndex = index);
-          },
-          itemBuilder: (context, index) {
-            return CachedNetworkImage(
-              imageUrl: images[index],
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                color: Colors.grey.shade200,
-                child: const Center(
-                  child: CircularProgressIndicator(),
+  final imageHeight = MediaQuery.of(context).size.width * (3 / 2); // 2:3 aspect ratio
+  
+  return AspectRatio(
+    aspectRatio: 2/3,
+    child: Stack(
+      children: [
+        // ✅ PageView - The main scrollable content
+        Positioned.fill(
+          child: PageView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: images.length,
+            onPageChanged: (index) {
+              print('📸 Swiped to image ${index + 1}/${images.length}');
+              setState(() => _currentImageIndex = index);
+            },
+            itemBuilder: (context, index) {
+              return CachedNetworkImage(
+                imageUrl: images[index],
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: Colors.grey.shade200,
+                  child: const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
+              );
+            },
+          ),
+        ),
+        
+        // ✅ Gradient overlay - with IgnorePointer so it doesn't block swipes!
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.3),
+                  ],
+                  stops: const [0.6, 1.0],
                 ),
               ),
-              errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
-            );
-          },
-        ),
-      ),
-      
-      // Gradient overlay
-      Positioned.fill(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.black.withOpacity(0.3),
-              ],
-              stops: [0.6, 1.0],
             ),
           ),
         ),
-      ),
-      
-      // TOP-LEFT: Discount badge
-      Positioned(
-        top: 12,
-        left: 12,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.red.shade600,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Text(
-            '${widget.deal.discountPercentage}% OFF',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ),
-      
-      // TOP-RIGHT: Image counter
-      if (images.length > 1)
+        
+        // ✅ TOP-LEFT: Discount badge - with IgnorePointer
         Positioned(
           top: 12,
-          right: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${_currentImageIndex + 1}/${images.length}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
+          left: 12,
+          child: IgnorePointer(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.red.shade600,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ),
-          ),
-        ),
-      
-      // BOTTOM-CENTER: Dot indicators
-      if (images.length > 1)
-        Positioned(
-          bottom: 16,
-          left: 0,
-          right: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              images.length,
-              (index) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _currentImageIndex == index
-                    ? Colors.white
-                    : Colors.white54,
-                  boxShadow: _currentImageIndex == index
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 4,
-                        ),
-                      ]
-                    : null,
+              child: Text(
+                '${widget.deal.discountPercentage}% OFF',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
               ),
             ),
           ),
         ),
-    ],
+        
+        // ✅ TOP-RIGHT: Image counter - with IgnorePointer
+        if (images.length > 1)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_currentImageIndex + 1}/${images.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        
+        // ✅ BOTTOM-CENTER: Dot indicators - with IgnorePointer
+        if (images.length > 1)
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  images.length,
+                  (index) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentImageIndex == index
+                        ? Colors.white
+                        : Colors.white54,
+                      boxShadow: _currentImageIndex == index
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 4,
+                            ),
+                          ]
+                        : null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
   );
 }
-  
 
- Widget _buildHeroImageNew(BuildContext context) {
+
+ Widget _buildHeroImageOld(BuildContext context) {
   final images = widget.deal.imageUrls.isNotEmpty 
     ? widget.deal.imageUrls 
     : (widget.deal.imageUrl != null ? [widget.deal.imageUrl!] : []);
