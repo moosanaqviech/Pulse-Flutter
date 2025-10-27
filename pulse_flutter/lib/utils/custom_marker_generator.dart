@@ -18,7 +18,7 @@ class CustomMarkerGenerator {
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final size = Size(120, 140); // Smaller, cleaner size
+    const size = Size(120, 140); // Smaller, cleaner size
 
     // Main marker container
     _drawMarkerContainer(canvas, size, isActive, isPopular);
@@ -36,6 +36,84 @@ class CustomMarkerGenerator {
     return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
   }
 
+ static Future<BitmapDescriptor> createDealMarkerWithCount({
+  required String category,
+  required double price,
+  required double originalPrice,
+  required int discountPercentage,
+  required bool isActive,
+  required bool isPopular,
+  required int dealCount,
+  double neonAnimationPhase = 0.0,
+}) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  const size = Size(120, 140);
+
+  // Main marker container
+  _drawMarkerContainer(canvas, size, isActive, isPopular);
+  
+  // Category icon
+  _drawCategoryIcon(canvas, category, size, neonAnimationPhase);
+
+  // Deal count badge (if more than 1 deal)
+  if (dealCount > 1) {
+    _drawDealCountBadge(canvas, size, dealCount);
+  }
+
+  // Marker pointer (bottom triangle)
+  _drawMarkerPointer(canvas, size, isActive);
+
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(size.width.toInt(), size.height.toInt());
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  
+  return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+}
+
+// ADD this helper method to CustomMarkerGenerator class:
+
+static void _drawDealCountBadge(Canvas canvas, Size size, int count) {
+  final badgeRadius = 14.0;
+  final badgeCenter = Offset(size.width - badgeRadius - 4, badgeRadius + 4);
+  
+  // Badge background
+  final badgePaint = Paint()
+    ..color = Colors.red
+    ..style = PaintingStyle.fill;
+  
+  canvas.drawCircle(badgeCenter, badgeRadius, badgePaint);
+  
+  // White border
+  final borderPaint = Paint()
+    ..color = Colors.white
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
+  
+  canvas.drawCircle(badgeCenter, badgeRadius, borderPaint);
+  
+  // Count text
+  final textPainter = TextPainter(
+    text: TextSpan(
+      text: count.toString(),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  );
+  
+  textPainter.layout();
+  textPainter.paint(
+    canvas,
+    Offset(
+      badgeCenter.dx - textPainter.width / 2,
+      badgeCenter.dy - textPainter.height / 2,
+    ),
+  );
+}
   // Enhanced marker with animation capability - simple version
   static Future<BitmapDescriptor> createAnimatedDealMarker({
     required String category,
@@ -49,7 +127,7 @@ class CustomMarkerGenerator {
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final size = Size(140, 160);
+    const size = Size(140, 160);
 
     // Animated pulse rings for popular deals
     if (isPopular && isPulsing) {
@@ -75,25 +153,25 @@ class CustomMarkerGenerator {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: isPopular 
-          ? [Color(0xFFFF6B6B), Color(0xFFFF5252)]
+          ? [const Color(0xFFFF6B6B), const Color(0xFFFF5252)]
           : isActive 
-            ? [Color(0xFF4CAF50), Color(0xFF45A049)]
-            : [Color(0xFF9E9E9E), Color(0xFF757575)],
+            ? [const Color(0xFF4CAF50), const Color(0xFF45A049)]
+            : [const Color(0xFF9E9E9E), const Color(0xFF757575)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height - 20));
 
     // Main rounded rectangle
     final roundedRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(10, 10, size.width - 20, size.height - 30),
-      Radius.circular(16),
+      const Radius.circular(16),
     );
     
     // Drop shadow
     final shadowPaint = Paint()
       ..color = Colors.black.withOpacity(0.3)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     
     canvas.drawRRect(
-      roundedRect.shift(Offset(2, 2)), 
+      roundedRect.shift(const Offset(2, 2)), 
       shadowPaint
     );
     
@@ -104,21 +182,21 @@ class CustomMarkerGenerator {
     final innerPaint = Paint()..color = Colors.white;
     final innerRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(15, 15, size.width - 30, size.height - 40),
-      Radius.circular(12),
+      const Radius.circular(12),
     );
     canvas.drawRRect(innerRect, innerPaint);
 
     // Popularity pulse effect for hot deals
     if (isPopular) {
       final pulsePaint = Paint()
-        ..color = Color(0xFFFF6B6B).withOpacity(0.3)
+        ..color = const Color(0xFFFF6B6B).withOpacity(0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3;
       
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(5, 5, size.width - 10, size.height - 25),
-          Radius.circular(20),
+          const Radius.circular(20),
         ),
         pulsePaint
       );
@@ -166,11 +244,11 @@ class CustomMarkerGenerator {
 
   static void _drawSquareNeonGlow(Canvas canvas, Size size, double animationPhase) {
     final neonColors = [
-      Color(0xFF00FFFF), // Cyan
-      Color(0xFF00FF00), // Green  
-      Color(0xFFFF00FF), // Magenta
-      Color(0xFFFFFF00), // Yellow
-      Color(0xFF00FFFF), // Back to cyan for smooth loop
+      const Color(0xFF00FFFF), // Cyan
+      const Color(0xFF00FF00), // Green  
+      const Color(0xFFFF00FF), // Magenta
+      const Color(0xFFFFFF00), // Yellow
+      const Color(0xFF00FFFF), // Back to cyan for smooth loop
     ];
 
     // Get the square boundary (main marker area without pointer)
@@ -260,25 +338,25 @@ class CustomMarkerGenerator {
   static Color _getCategoryColor(String category) {
     switch (category.toLowerCase()) {
       case 'restaurant':
-        return Color(0xFFD32F2F); // Rich red
+        return const Color(0xFFD32F2F); // Rich red
       case 'cafe':
-        return Color(0xFF8D6E63); // Coffee brown
+        return const Color(0xFF8D6E63); // Coffee brown
       case 'shop':
-        return Color(0xFF1976D2); // Blue
+        return const Color(0xFF1976D2); // Blue
       case 'activity':
-        return Color(0xFFFFB300); // Amber/gold
+        return const Color(0xFFFFB300); // Amber/gold
       case 'salon':
-        return Color(0xFFE91E63); // Pink
+        return const Color(0xFFE91E63); // Pink
       case 'fitness':
-        return Color(0xFF388E3C); // Green
+        return const Color(0xFF388E3C); // Green
       default:
-        return Color(0xFF6A1B9A); // Purple
+        return const Color(0xFF6A1B9A); // Purple
     }
   }
 
   static void _drawMarkerPointer(Canvas canvas, Size size, bool isActive) {
     final pointerPaint = Paint()
-      ..color = isActive ? Color(0xFF4CAF50) : Color(0xFF9E9E9E)
+      ..color = isActive ? const Color(0xFF4CAF50) : const Color(0xFF9E9E9E)
       ..style = PaintingStyle.fill;
 
     final pointerPath = Path();
@@ -290,16 +368,16 @@ class CustomMarkerGenerator {
     // Shadow for pointer
     final shadowPaint = Paint()
       ..color = Colors.black.withOpacity(0.3)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
     
-    canvas.drawPath(pointerPath.shift(Offset(1, 1)), shadowPaint);
+    canvas.drawPath(pointerPath.shift(const Offset(1, 1)), shadowPaint);
     canvas.drawPath(pointerPath, pointerPaint);
   }
 
   static void _drawPulseRings(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2 - 10);
     final pulsePaint = Paint()
-      ..color = Color(0xFFFF6B6B).withOpacity(0.2)
+      ..color = const Color(0xFFFF6B6B).withOpacity(0.2)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 

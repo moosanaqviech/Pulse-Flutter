@@ -12,6 +12,7 @@ import '../services/purchase_service.dart';
 import '../models/deal.dart';
 import '../widgets/deal_bottom_sheet.dart';
 import '../utils/custom_marker_generator.dart';
+import '../widgets/deal_preview_carousel.dart';
 import 'checkout_screen.dart';
 import 'favorite_screen.dart';
 import 'voucher_list_screen.dart';
@@ -121,51 +122,72 @@ class _MainScreenState extends State<MainScreen> {
     _updateMarkers();
   }
 
-  Future<void> _updateMarkers() async {
-    final dealService = Provider.of<DealService>(context, listen: false);
+ Future<void> _updateMarkers() async {
+  final dealService = Provider.of<DealService>(context, listen: false);
+  
+  setState(() {
+    _markers.clear();
+  });
+  
+  // Group deals by location (businesses with same lat/lng)
+  final Map<String, List<Deal>> dealsByLocation = {};
+  
+  for (final deal in dealService.deals) {
+    final locationKey = '${deal.latitude}_${deal.longitude}';
+    dealsByLocation.putIfAbsent(locationKey, () => []).add(deal);
+  }
+  
+  // Create markers for each location
+  for (final entry in dealsByLocation.entries) {
+    final deals = entry.value;
+    final firstDeal = deals.first;
+    final dealCount = deals.length;
+    
+    // Use the highest discount for marker styling
+    final maxDiscount = deals.map((d) => d.discountPercentage).reduce((a, b) => a > b ? a : b);
+    final shouldAnimate = maxDiscount >= 50;
+    
+    // Create marker with deal count badge
+    final customMarker = await CustomMarkerGenerator.createDealMarkerWithCount(
+      category: firstDeal.category,
+      price: firstDeal.dealPrice,
+      originalPrice: firstDeal.originalPrice,
+      discountPercentage: maxDiscount,
+      isActive: deals.any((d) => d.isActive && !d.isExpired && !d.isSoldOut),
+      isPopular: shouldAnimate,
+      dealCount: dealCount, // Pass the count
+      neonAnimationPhase: 0.0,
+    );
     
     setState(() {
-      _markers.clear();
-     // _animatedMarkerIds.clear();
-    });
-    
-    for (final deal in dealService.deals) {
-      final shouldAnimate = deal.discountPercentage >= 50;
-      
-      final customMarker = await CustomMarkerGenerator.createDealMarker(
-        category: deal.category,
-        price: deal.dealPrice,
-        originalPrice: deal.originalPrice,
-        discountPercentage: deal.discountPercentage,
-        isPopular: shouldAnimate, isActive: deal.isActive && !deal.isExpired && !deal.isSoldOut,
-        neonAnimationPhase: 0.0,//shouldAnimate ? _neonAnimationPhase : 0.0,
+      _markers.add(
+        Marker(
+          markerId: MarkerId(entry.key),
+          position: LatLng(firstDeal.latitude, firstDeal.longitude),
+          icon: customMarker,
+          onTap: () => _onMarkerTap(deals), // Pass list of deals
+          infoWindow: InfoWindow.noText,
+        ),
       );
-      
-      if (shouldAnimate) {
-        //_animatedMarkerIds.add(deal.id);
-      }
-      
-      setState(() {
-        _markers.add(
-          Marker(
-            markerId: MarkerId(deal.id),
-            position: LatLng(deal.latitude, deal.longitude),
-            icon: customMarker,
-            onTap: () => _onMarkerTap(deal),
-            infoWindow: InfoWindow.noText,
-          ),
-        );
-      });
-    }
-  }
-
-  void _onMarkerTap(Deal deal) {
-    setState(() {
-      _selectedDeal = deal;
     });
-    
-    _showDealBottomSheet(deal);
   }
+}
+
+void _onMarkerTap(dynamic dealsOrDeal) {
+  // Handle both single deal and multiple deals
+  final List<Deal> deals = dealsOrDeal is List<Deal> ? dealsOrDeal : [dealsOrDeal as Deal];
+  
+  if (deals.length == 1) {
+    // Single deal - go directly to full bottom sheet
+    setState(() {
+      _selectedDeal = deals.first;
+    });
+    _showDealBottomSheet(deals.first);
+  } else {
+    // Multiple deals - show preview carousel first
+    _showDealPreviewCarousel(deals);
+  }
+}
 
   void _showDealBottomSheet(Deal deal) {
     showModalBottomSheet(
@@ -792,6 +814,26 @@ class _MainScreenState extends State<MainScreen> {
       }
     }
   }
+
+void _showDealPreviewCarousel(List<Deal> deals) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => DealPreviewCarousel(
+      deals: deals,
+      onDealSelected: (deal) {
+        // Close carousel and open full bottom sheet
+        Navigator.pop(context);
+        setState(() {
+          _selectedDeal = deal;
+        });
+        _showDealBottomSheet(deal);
+      },
+      onClose: () => Navigator.pop(context),
+    ),
+  );
+}
 
   void _showSearch() {
     ScaffoldMessenger.of(context).showSnackBar(
