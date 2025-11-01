@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -32,11 +33,15 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   bool _hasSavedCards = false;
   bool _isLoadingCards = false;
   int _currentImageIndex = 0;
+  double? _businessRating;
+  int? _totalRatings;
+  bool _loadingRating = true;
   @override
   void initState() {
     super.initState();
     initDistanceCalculation(widget.deal, autoRefresh: true);
     _loadSavedPaymentMethods();
+    _loadBusinessRating();  // ✅ ADD THIS
   }
 
 @override
@@ -888,7 +893,144 @@ Widget _buildHeroImage(BuildContext context) {
     );
   }
   
+
   Widget _buildTextContent(BuildContext context) {
+  return Padding(
+    padding: const EdgeInsets.all(16), // More breathing room
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title - 2 lines max
+        
+        const SizedBox(height: 6),
+        
+        // Business name with rating
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.deal.businessName,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // ✅ ADD RATING HERE
+            if (!_loadingRating && _businessRating != null && _totalRatings != null) ...[
+      const SizedBox(width: 8),
+      Icon(
+        Icons.star,
+        color: Colors.amber,
+        size: 14,
+      ),
+      const SizedBox(width: 2),
+      Text(
+        _businessRating!.toStringAsFixed(1),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+      Text(
+        ' ($_totalRatings)',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+        ),
+      ),
+    ] else if (_loadingRating) ...[
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 12,
+        height: 12,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.grey.shade400,
+        ),
+      ),
+    ],
+          ],
+        ),
+        
+        const SizedBox(height: 6),
+        
+        // Business address with subtle styling
+        InkWell(
+          onTap: () => _showAddressOptions(),
+          child: Text(
+            widget.deal.businessAddress,
+            style: TextStyle(
+              color: Colors.blue.shade600,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        
+        /*const SizedBox(height: 6),
+        buildDistanceWidget(
+          widget.deal,
+          onRefresh: () => refreshDistance(widget.deal),
+        ),*/
+        
+        // Price row - PROMINENT
+        Row(
+          children: [
+            // Original price - crossed out
+            Text(
+              '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade500,
+                decoration: TextDecoration.lineThrough,
+                decorationThickness: 2,
+              ),
+            ),
+            const SizedBox(width: 8),
+            // New price - BIG
+            Text(
+              '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 24, // Much bigger
+                fontWeight: FontWeight.bold,
+                color: Colors.green.shade700,
+              ),
+            ),
+            const Spacer(),
+          ],
+        ),
+        
+        const SizedBox(height: 6),
+        
+        Row(
+          children: [
+            // Business description with subtle styling
+            Expanded(
+              child: Text(
+                widget.deal.description,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+          ],
+        )
+      ],
+    ),
+  );
+}
+  Widget _buildTextContentOld(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16), // More breathing room
       child: Column(
@@ -910,7 +1052,7 @@ Widget _buildHeroImage(BuildContext context) {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-
+          
           const SizedBox(height: 6),
            InkWell(
           onTap: () => _showAddressOptions(),
@@ -1262,7 +1404,7 @@ Widget _buildTitleSection(BuildContext context) {
 
 Widget _buildDescriptionSection(BuildContext context) {
   return Container(
-    constraints: BoxConstraints(
+    constraints: const BoxConstraints(
       maxHeight: 60, // ✅ Limit description height
     ),
     child: Text(
@@ -1272,6 +1414,42 @@ Widget _buildDescriptionSection(BuildContext context) {
       overflow: TextOverflow.ellipsis,
     ),
   );
+}
+
+Future<void> _loadBusinessRating() async {
+  if (widget.deal.businessId.isEmpty) {
+    setState(() => _loadingRating = false);
+    return;
+  }
+
+  try {
+    final businessDoc = await FirebaseFirestore.instance
+        .collection('businesses')
+        .doc(widget.deal.businessId)
+        .get();
+
+    if (businessDoc.exists) {
+      final data = businessDoc.data();
+      if (mounted) {
+        setState(() {
+          _businessRating = data?['averageRating'] != null
+              ? (data!['averageRating'] as num).toDouble()
+              : null;
+          _totalRatings = data?['totalRatings'];
+          _loadingRating = false;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() => _loadingRating = false);
+      }
+    }
+  } catch (e) {
+    print('Error loading business rating: $e');
+    if (mounted) {
+      setState(() => _loadingRating = false);
+    }
+  }
 }
 
 Widget _buildPriceSection(BuildContext context) {

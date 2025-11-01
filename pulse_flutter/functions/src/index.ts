@@ -14,6 +14,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "TEST", {
   apiVersion: "2025-09-30.clover",
 });
 
+
 /**
  * Create Payment Intent
  */
@@ -303,10 +304,22 @@ export const confirmPayment = onCall(async (request) => {
     );
   }
 });
+// Export Stripe Connect funtions
+export {
+  createConnectedAccount,
+  createAccountLink,
+  getAccountStatus,
+} from "./stripe/connect";
+
+
+// Export Webhook handlers
+export {
+  stripeConnectWebhook,
+} from "./stripe/webhooks";
 
 /**
  * Stripe Webhook Handler
- */
+*/ 
 export const stripeWebhook = onRequest(async (req, res) => {
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -349,7 +362,7 @@ export const stripeWebhook = onRequest(async (req, res) => {
     console.error("Error handling webhook:", error);
     res.status(500).send(`Webhook handler failed: ${error.message}`);
   }
-});
+}); 
 function toMilliseconds(value: any): number {
   // If it's already a number (old format)
   if (typeof value === 'number') {
@@ -389,6 +402,7 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promis
   }
 }
 
+
 async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promise<void> {
   console.log("Payment failed:", paymentIntent.id);
 
@@ -419,14 +433,6 @@ async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent): Promis
   }
 }
 
-// Add these functions to functions/src/index.ts
-
-/**
- * Verify Voucher (check validity without redeeming)
- */
-/**
- * Verify Voucher (check validity without redeeming)
- */
 /**
  * Verify Voucher (check validity without redeeming) - Updated to include stripePaymentIntentId
  */
@@ -508,11 +514,10 @@ export const verifyVoucher = onCall(async (request) => {
       userId: String(purchase.userId || ""),
       dealId: String(purchase.dealId || ""),
       dealTitle: String(purchase.dealTitle || ""),
+      businessId: String(purchase.businessId),
       businessName: String(purchase.businessName || ""),
       amount: Number(purchase.amount || 0),
       status: String(purchase.status || ""),
-      //purchaseTime: purchase.purchaseTime ? Number(purchase.purchaseTime) : Date.now(),
-      //expirationTime: purchase.expirationTime ? Number(purchase.expirationTime) : Date.now(),
       purchaseTime: toMilliseconds(purchase.purchaseTime),  // 🔄 CHANGED
       expirationTime: toMilliseconds(purchase.expirationTime),  // 🔄 CHANGED
       imageUrl: String(purchase.imageUrl || ""),
@@ -653,7 +658,6 @@ export const redeemVoucher = onCall(async (request) => {
   }
 });
 
-// Add these functions to your existing functions/src/index.ts file
 
 /**
  * Create Payment Intent with Setup Future Usage (Enhanced version)

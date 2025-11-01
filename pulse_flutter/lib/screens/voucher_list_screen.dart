@@ -7,6 +7,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/purchase.dart';
 import '../services/purchase_service.dart';
 import '../services/auth_service.dart';
+import '../services/rating_service.dart';
+import '../widgets/rating_widget.dart';
 import 'voucher_detail_screen.dart';
 
 class VoucherListScreen extends StatefulWidget {
@@ -199,153 +201,215 @@ class _VoucherListScreenState extends State<VoucherListScreen>
   }
 
   Widget _buildVoucherCard(Purchase voucher) {
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => VoucherDetailScreen(purchase: voucher),
+  return Card(
+    elevation: 3,
+    margin: const EdgeInsets.only(bottom: 16),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => VoucherDetailScreen(purchase: voucher),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        children: [
+          // Status Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: _getStatusColor(voucher),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
             ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          children: [
-            // Status Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: _getStatusColor(voucher),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
+            child: Row(
+              children: [
+                Icon(
+                  _getStatusIcon(voucher),
+                  color: Colors.white,
+                  size: 16,
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _getStatusIcon(voucher),
+                const SizedBox(width: 8),
+                Text(
+                  _getStatusText(voucher),
+                  style: const TextStyle(
                     color: Colors.white,
-                    size: 16,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _getStatusText(voucher),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
+                ),
+                const Spacer(),
+                Text(
+                  '\$${voucher.amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
-                  const Spacer(),
-                  Text(
-                    '\$${voucher.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            
-            // Main Content
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  // Deal Image
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: (voucher.imageUrl != null && voucher.imageUrl!.isNotEmpty)
-                        ? CachedNetworkImage(
-                            imageUrl: voucher.imageUrl!,
-                            width: 60,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              width: 60,
-                              height: 60,
-                              color: Colors.grey.shade200,
-                              child: const Icon(Icons.image),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              width: 60,
-                              height: 60,
-                              color: Colors.grey.shade200,
-                              child: const Icon(Icons.image_not_supported),
-                            ),
-                          )
-                        : Container(
+          ),
+          
+          // Main Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Deal Image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: (voucher.imageUrl != null && voucher.imageUrl!.isNotEmpty)
+                      ? CachedNetworkImage(
+                          imageUrl: voucher.imageUrl!,
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
                             width: 60,
                             height: 60,
                             color: Colors.grey.shade200,
-                            child: const Icon(Icons.local_offer),
+                            child: const Icon(Icons.image),
                           ),
-                  ),
-                  
-                  const SizedBox(width: 16),
-                  
-                  // Deal Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          voucher.dealTitle,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                          errorWidget: (context, url, error) => Container(
+                            width: 60,
+                            height: 60,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image_not_supported),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        )
+                      : Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.local_offer),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.store,
-                              size: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                voucher.businessName,
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                ),
+                
+                const SizedBox(width: 16),
+                
+                // Deal Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        voucher.dealTitle,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.store,
+                            size: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              voucher.businessName,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 13,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDateInfo(voucher),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDateInfo(voucher),
+                    ],
                   ),
+                ),
+                
+                // Arrow Icon
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+          
+          // ✅ ADD RATING BUTTON FOR REDEEMED VOUCHERS
+          if (voucher.isRedeemed && voucher.businessId.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Consumer<RatingService>(
+                builder: (context, ratingService, child) {
+                  final hasRated = ratingService.hasUserRatedBusiness(
+                    voucher.businessId,
+                  );
                   
-                  // Arrow Icon
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Colors.grey.shade400,
-                  ),
-                ],
+                  return InkWell(
+                    onTap: () => _showRatingDialog(voucher),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: hasRated 
+                            ? Colors.blue.shade50 
+                            : Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: hasRated 
+                              ? Colors.blue.shade200 
+                              : Colors.amber.shade200,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            hasRated ? Icons.edit : Icons.star,
+                            color: hasRated 
+                                ? Colors.blue.shade700 
+                                : Colors.amber.shade700,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            hasRated 
+                                ? 'Update Your Rating' 
+                                : 'Rate Your Experience',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: hasRated 
+                                  ? Colors.blue.shade700 
+                                  : Colors.amber.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDateInfo(Purchase voucher) {
     if (voucher.isRedeemed && voucher.redeemedAt != null) {
@@ -407,6 +471,154 @@ class _VoucherListScreenState extends State<VoucherListScreen>
       );
     }
   }
+
+  void _showRatingDialog(Purchase voucher) async {
+  final authService = Provider.of<AuthService>(context, listen: false);
+  final ratingService = Provider.of<RatingService>(context, listen: false);
+  
+  if (authService.currentUser == null) return;
+
+  // Check if user already rated this business
+  final existingRating = await ratingService.getUserRatingForBusiness(
+    authService.currentUser!.uid,
+    voucher.businessId,
+  );
+
+  int selectedRating = existingRating?.stars ?? 0;
+  final commentController = TextEditingController(
+    text: existingRating?.comment ?? '',
+  );
+
+  if (!mounted) return;
+
+  showDialog(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(
+          existingRating != null 
+              ? 'Update Your Rating' 
+              : 'Rate ${voucher.businessName}',
+          style: const TextStyle(fontSize: 18),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'How was your experience?',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: RatingWidget(
+                  rating: selectedRating,
+                  size: 40,
+                  onRatingChanged: (rating) {
+                    setState(() => selectedRating = rating);
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(
+                  hintText: 'Share your experience (optional)',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(12),
+                ),
+                maxLines: 4,
+                maxLength: 500,
+              ),
+              if (existingRating != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Originally rated on ${DateFormat('MMM d, yyyy').format(existingRating.createdAt)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: selectedRating > 0
+                ? () => _submitRating(voucher, selectedRating, commentController.text)
+                : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+            ),
+            child: Text(existingRating != null ? 'Update' : 'Submit'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> _submitRating(Purchase voucher, int stars, String comment) async {
+  final authService = Provider.of<AuthService>(context, listen: false);
+  final ratingService = Provider.of<RatingService>(context, listen: false);
+  
+  if (authService.currentUser == null) return;
+
+  final success = await ratingService.submitRating(
+    userId: authService.currentUser!.uid,
+    businessId: voucher.businessId,
+    businessName: voucher.businessName,
+    stars: stars,
+    dealId: voucher.dealId,
+    dealTitle: voucher.dealTitle,
+    comment: comment.isNotEmpty ? comment : null,
+  );
+
+  if (!mounted) return;
+  
+  Navigator.pop(context);
+
+  if (success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                ratingService.hasUserRatedBusiness(voucher.businessId)
+                    ? 'Rating updated successfully!'
+                    : 'Thank you for your rating!',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ratingService.errorMessage ?? 'Failed to submit rating'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+}
 
   Color _getStatusColor(Purchase voucher) {
     if (voucher.isRedeemed) {

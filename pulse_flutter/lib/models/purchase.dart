@@ -6,6 +6,7 @@ class Purchase {
   final String userId;
   final String dealId;
   final String dealTitle;
+  final String businessId; 
   final String businessName;
   final double amount;
   final String status; // 'pending', 'confirmed', 'redeemed', 'expired'
@@ -22,6 +23,7 @@ class Purchase {
     required this.userId,
     required this.dealId,
     required this.dealTitle,
+    required this.businessId,
     required this.businessName,
     required this.amount,
     required this.status,
@@ -77,6 +79,7 @@ class Purchase {
       userId: data['userId'] ?? '',
       dealId: data['dealId'] ?? '',
       dealTitle: data['dealTitle'] ?? '',
+      businessId: data['businessId'] ?? '',
       businessName: data['businessName'] ?? '',
       amount: (data['amount'] ?? 0.0).toDouble(),
       status: data['status'] ?? 'pending',
@@ -119,6 +122,7 @@ class Purchase {
       'userId': userId,
       'dealId': dealId,
       'dealTitle': dealTitle,
+      'businessId' : businessId,
       'businessName': businessName,
       'amount': amount,
       'status': status,
@@ -138,6 +142,7 @@ class Purchase {
     String? userId,
     String? dealId,
     String? dealTitle,
+    String? businessId,
     String? businessName,
     double? amount,
     String? status,
@@ -154,6 +159,7 @@ class Purchase {
       userId: userId ?? this.userId,
       dealId: dealId ?? this.dealId,
       dealTitle: dealTitle ?? this.dealTitle,
+      businessId: businessId ?? this.businessId,
       businessName: businessName ?? this.businessName,
       amount: amount ?? this.amount,
       status: status ?? this.status,

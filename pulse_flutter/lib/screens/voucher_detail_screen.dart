@@ -8,6 +8,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../services/auth_service.dart';
+import '../widgets/rating_widget.dart';
+import '../services/rating_service.dart';
 import '../models/purchase.dart';
 import '../services/purchase_service.dart';
 
@@ -67,8 +70,8 @@ class _VoucherDetailScreenState extends State<VoucherDetailScreen> {
 
   void _showRedeemedNotification() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
+      const SnackBar(
+        content: Row(
           children: [
             Icon(Icons.check_circle, color: Colors.white),
             SizedBox(width: 8),
@@ -76,7 +79,7 @@ class _VoucherDetailScreenState extends State<VoucherDetailScreen> {
           ],
         ),
         backgroundColor: Colors.green,
-        duration: const Duration(seconds: 5),
+        duration: Duration(seconds: 5),
       ),
     );
   }
@@ -391,48 +394,104 @@ class _VoucherDetailScreenState extends State<VoucherDetailScreen> {
     );
   }
 
-  Widget _buildQRActions(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Quick Actions',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+ Widget _buildQRActions(BuildContext context) {
+  print('🔍 Debug Purchase Info:');
+  print('  - Purchase ID: ${widget.purchase.id}');
+  print('  - Business ID: "${widget.purchase.businessId}"');
+  print('  - Business ID isEmpty: ${widget.purchase.businessId.isEmpty}');
+  print('  - Is Redeemed: ${widget.purchase.isRedeemed}');
+  print('  - Status: ${widget.purchase.status}');
+  print('  - Should show rating: ${widget.purchase.isRedeemed && widget.purchase.businessId.isNotEmpty}');
+  
+  return Card(
+    elevation: 2,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Actions',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Existing copy and share buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _copyVoucherCode(),
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copy Code'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _shareVoucher(),
+                  icon: const Icon(Icons.share, size: 18),
+                  label: const Text('Share'),
+                ),
+              ),
+            ],
+          ),
+          
+          // Add rating button if redeemed
+          if (widget.purchase.isRedeemed) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: Consumer<RatingService>(
+                builder: (context, ratingService, child) {
+                  final hasRated = ratingService.hasUserRatedBusiness(
+                    widget.purchase.businessId,
+                  );
+                  
+                  return ElevatedButton.icon(
+                    onPressed: _showRatingDialog,
+                    icon: Icon(hasRated ? Icons.edit : Icons.star),
+                    label: Text(hasRated ? 'Update Rating' : 'Rate This Business'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hasRated ? Colors.blue : Colors.amber,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  );
+                },
               ),
             ),
+          ]else ...[
+            // ✅ ADD THIS: Show why button isn't showing
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _copyVoucherCode(),
-                    icon: const Icon(Icons.copy, size: 18),
-                    label: const Text('Copy Code'),
-                  ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                'Debug: Rating not available\n'
+                'Redeemed: ${widget.purchase.isRedeemed}\n'
+                'Has businessId: ${widget.purchase.businessId.isNotEmpty}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.orange.shade900,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _shareVoucher(),
-                    icon: const Icon(Icons.share, size: 18),
-                    label: const Text('Share'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDetailRow(
     BuildContext context,
@@ -607,4 +666,142 @@ class _VoucherDetailScreenState extends State<VoucherDetailScreen> {
       ),
     );
   }
+
+  void _showRatingDialog() async {
+  final authService = Provider.of<AuthService>(context, listen: false);
+  final ratingService = Provider.of<RatingService>(context, listen: false);
+  
+  if (authService.currentUser == null) return;
+
+  // Check if user already rated this business
+  final existingRating = await ratingService.getUserRatingForBusiness(
+    authService.currentUser!.uid,
+    widget.purchase.businessId ?? '',
+  );
+
+  int selectedRating = existingRating?.stars ?? 0;
+  final commentController = TextEditingController(text: existingRating?.comment ?? '');
+
+  if (!mounted) return;
+
+  showDialog(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(
+          existingRating != null ? 'Update Your Rating' : 'Rate ${widget.purchase.businessName}',
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'How was your experience?',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: RatingWidget(
+                  rating: selectedRating,
+                  size: 40,
+                  onRatingChanged: (rating) {
+                    setState(() => selectedRating = rating);
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(
+                  hintText: 'Share your experience (optional)',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.all(12),
+                ),
+                maxLines: 4,
+                maxLength: 500,
+              ),
+              if (existingRating != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Originally rated on ${DateFormat('MMM d, yyyy').format(existingRating.createdAt)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: selectedRating > 0
+                ? () => _submitRating(selectedRating, commentController.text)
+                : null,
+            child: Text(existingRating != null ? 'Update' : 'Submit'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> _submitRating(int stars, String comment) async {
+  final authService = Provider.of<AuthService>(context, listen: false);
+  final ratingService = Provider.of<RatingService>(context, listen: false);
+  
+  if (authService.currentUser == null) return;
+
+  final success = await ratingService.submitRating(
+    userId: authService.currentUser!.uid,
+    businessId: widget.purchase.businessId ?? '',
+    businessName: widget.purchase.businessName,
+    stars: stars,
+    dealId: widget.purchase.dealId,
+    dealTitle: widget.purchase.dealTitle,
+    comment: comment.isNotEmpty ? comment : null,
+  );
+
+  if (!mounted) return;
+  
+  Navigator.pop(context);
+
+  if (success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                ratingService.hasUserRatedBusiness(widget.purchase.businessId ?? '')
+                    ? 'Rating updated successfully!'
+                    : 'Thank you for your rating!',
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ratingService.errorMessage ?? 'Failed to submit rating'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+}
 }

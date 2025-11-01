@@ -43,6 +43,8 @@ class DealService extends ChangeNotifier {
     }
   }
 
+ 
+ 
   // Load sample deals for demo
   Future<void> _loadSampleDeals() async {
     final now = DateTime.now().millisecondsSinceEpoch;

@@ -11,12 +11,15 @@ class Deal {
   final double dealPrice;
   final int totalQuantity;
   final int remainingQuantity;
+  final String businessId;        // ✅ ADD THIS LINE
   final String businessName;
   final String businessAddress;
   final int expirationTime;
   final String? imageUrl;
   final bool isActive;
   final List<String> imageUrls; 
+  final double? businessAverageRating;
+  final int? businessTotalRatings;
 
   Deal({
     required this.id,
@@ -29,12 +32,15 @@ class Deal {
     required this.dealPrice,
     required this.totalQuantity,
     required this.remainingQuantity,
+    required this.businessId,
     required this.businessName,
     required this.businessAddress,
     required this.expirationTime,
     this.imageUrl,
     this.imageUrls = const [],
     this.isActive = true,
+    this.businessAverageRating,
+    this.businessTotalRatings,
   });
 
   // Calculate discount percentage
@@ -107,6 +113,7 @@ class Deal {
       dealPrice: (data['dealPrice'] ?? 0.0).toDouble(),
       totalQuantity: data['totalQuantity'] ?? 0,
       remainingQuantity: data['remainingQuantity'] ?? 0,
+      businessId: data['businessId'] ?? '',        
       businessName: data['businessName'] ?? '',
       businessAddress: data['businessAddress']?? '',
       expirationTime: _parseExpirationTime(data['expirationTime']),
@@ -115,6 +122,10 @@ class Deal {
         ? List<String>.from(data['imageUrls']) 
         : [],
       isActive: data['isActive'] ?? true,
+       businessAverageRating: data['businessAverageRating'] != null
+        ? (data['businessAverageRating'] as num).toDouble()
+        : null,
+    businessTotalRatings: data['businessTotalRatings'],
     );
   }
 
@@ -197,6 +208,7 @@ static int _parseExpirationTime(dynamic value) {
       dealPrice: dealPrice ?? this.dealPrice,
       totalQuantity: totalQuantity ?? this.totalQuantity,
       remainingQuantity: remainingQuantity ?? this.remainingQuantity,
+      businessId: businessId ?? this.businessId,
       businessName: businessName ?? this.businessName,
       businessAddress: businessAddress ?? this.businessAddress,
       expirationTime: expirationTime ?? this.expirationTime,
