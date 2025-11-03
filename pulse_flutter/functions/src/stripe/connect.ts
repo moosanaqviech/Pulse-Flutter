@@ -17,91 +17,128 @@ export const createConnectedAccount = onCall(
     timeoutSeconds: TIMEOUTS.SHORT,
   },
   async (request) => {
-    const userId = requireAuth(request.auth);
-    const { businessId, email, businessName, country, type } = request.data;
+    try {
 
-    // Validation
-    if (!businessId || !email || !businessName) {
-      throw new HttpsError(
-        "invalid-argument",
-        "businessId, email, and businessName are required"
-      );
+        console.log("🔵 Function started with data:", request.data);
+        
+        const userId = requireAuth(request.auth);
+        console.log("🔵 User ID:", userId);
+        
+        const { businessId, email, businessName, country, type } = request.data;
+        console.log("🔵 Parsed data:", { businessId, email, businessName, country, type });
+
+
+        // Validation
+        if (!businessId || !email || !businessName) {
+        throw new HttpsError(
+            "invalid-argument",
+            "businessId, email, and businessName are required"
+        );
+        }
+
+        // Rate limiting
+        const allowed = await checkRateLimit(
+        userId,
+        "stripe_account_create",
+        RATE_LIMITS.STRIPE_ACCOUNT_CREATE.maxAttempts,
+        RATE_LIMITS.STRIPE_ACCOUNT_CREATE.windowMinutes
+        );
+        
+        if (!allowed) {
+        throw new HttpsError(
+            "resource-exhausted",
+            "Too many attempts. Please try again in an hour."
+        );
+        }
+
+        // Security checks
+        await verifyBusinessOwnership(businessId, userId);
+        await verifyBusinessEmail(businessId, email);
+        await verifyBusinessName(businessId, businessName);
+
+        console.log("🔵 About to create Stripe account...");
+        // Create account
+        const account = await stripe.accounts.create({
+        type: type || "express",
+        country: country || "CA",
+        email: email,
+        capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+        },
+        business_type: "company",
+        company: { name: businessName },
+        metadata: { businessId, platform: "pulse" },
+        });
+
+        await admin.firestore().collection("businesses").doc(businessId).update({
+        stripeConnectedAccountId: account.id,
+        stripeAccountStatus: "pending",
+        stripeAccountOnboarded: false,
+        stripePayoutsEnabled: false,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {
+        success: true,
+        accountId: account.id,
+        };
+    } catch (error){
+        console.error("❌ Detailed error:", error);
+      console.error("❌ Error stack:", error.stack);
+      throw error;
     }
-
-    // Rate limiting
-    const allowed = await checkRateLimit(
-      userId,
-      "stripe_account_create",
-      RATE_LIMITS.STRIPE_ACCOUNT_CREATE.maxAttempts,
-      RATE_LIMITS.STRIPE_ACCOUNT_CREATE.windowMinutes
-    );
     
-    if (!allowed) {
-      throw new HttpsError(
-        "resource-exhausted",
-        "Too many attempts. Please try again in an hour."
-      );
-    }
-
-    // Security checks
-    await verifyBusinessOwnership(businessId, userId);
-    await verifyBusinessEmail(businessId, email);
-    await verifyBusinessName(businessId, businessName);
-
-    // Create account
-    const account = await stripe.accounts.create({
-      type: type || "express",
-      country: country || "CA",
-      email: email,
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      business_type: "company",
-      company: { name: businessName },
-      metadata: { businessId, platform: "pulse" },
-    });
-
-    await admin.firestore().collection("businesses").doc(businessId).update({
-      stripeConnectedAccountId: account.id,
-      stripeAccountStatus: "pending",
-      stripeAccountOnboarded: false,
-      stripePayoutsEnabled: false,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    return {
-      success: true,
-      accountId: account.id,
-    };
   }
 );
 
 export const createAccountLink = onCall(
   { region: REGIONS.PRIMARY, memory: MEMORY.SMALL },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be authenticated");
+    try {
+      console.log("🔵 === CREATE ACCOUNT LINK STARTED ===");
+      console.log("🔵 Request data:", JSON.stringify(request.data));
+      
+      if (!request.auth) {
+        console.log("❌ No auth in createAccountLink");
+        throw new HttpsError("unauthenticated", "Must be authenticated");
+      }
+
+      const { connectedAccountId, refreshUrl, returnUrl } = request.data;
+      console.log("🔵 Extracted data:", { connectedAccountId, refreshUrl, returnUrl });
+
+      if (!connectedAccountId) {
+        console.log("❌ Missing connectedAccountId");
+        throw new HttpsError("invalid-argument", "connectedAccountId is required");
+      }
+
+      console.log("🔵 About to create Stripe account link...");
+      const accountLink = await stripe.accountLinks.create({
+        account: connectedAccountId,
+        refresh_url: "https://incandescent-pixie-dd06ee.netlify.app/stripe-refresh",
+        return_url: "https://incandescent-pixie-dd06ee.netlify.app/stripe-complete",
+        type: "account_onboarding",
+      });
+      
+      console.log("✅ Account link created:", accountLink.url);
+
+      return {
+        success: true,
+        url: accountLink.url,
+        expiresAt: accountLink.expires_at,
+      };
+    } catch (error: any) {
+      console.error("❌ === CREATE ACCOUNT LINK ERROR ===");
+      console.error("❌ Error:", error);
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Error stack:", error.stack);
+      
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      
+      throw new HttpsError("internal", `Account link failed: ${error.message}`);
     }
-
-    const { connectedAccountId, refreshUrl, returnUrl } = request.data;
-
-    if (!connectedAccountId) {
-      throw new HttpsError("invalid-argument", "connectedAccountId is required");
-    }
-
-    const accountLink = await stripe.accountLinks.create({
-      account: connectedAccountId,
-      refresh_url: refreshUrl || "pulse://business/stripe-refresh",
-      return_url: returnUrl || "pulse://business/stripe-complete",
-      type: "account_onboarding",
-    });
-
-    return {
-      success: true,
-      url: accountLink.url,
-      expiresAt: accountLink.expires_at,
-    };
   }
 );
 
