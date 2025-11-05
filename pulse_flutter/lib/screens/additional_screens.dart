@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
+import '../services/facebook_service.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
 
@@ -81,6 +84,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     if (success && mounted) {
       Navigator.of(context).pop();
+      unawaited(FacebookService.trackRegistration(method: "_signup"));
+    
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

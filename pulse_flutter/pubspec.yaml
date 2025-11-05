@@ -63,10 +63,15 @@ dependencies:
   uuid: ^4.2.1
   url_launcher: ^6.2.2
 
+  # Facebook Ad integration
+  facebook_app_events: ^0.19.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+
+
 
 flutter:
   uses-material-design: true

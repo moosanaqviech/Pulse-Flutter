@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,6 +9,7 @@ import 'package:pulse_flutter/mixins/distance_calculator_mixin.dart';
 
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
+import '../services/facebook_service.dart';
 import '../services/payment_service.dart';
 import '../services/auth_service.dart';
 import '../services/purchase_service.dart';
@@ -1191,7 +1194,8 @@ Widget _buildHeroImage(BuildContext context) {
       if (purchase == null) {
         throw Exception('Failed to confirm payment');
       }
-
+      unawaited(FacebookService.trackPurchase(amount: widget.deal.dealPrice, currency: "CAD"));
+      
       // Step 4: Close bottom sheet and navigate to voucher screen
       if (mounted) {
         Navigator.of(context).pop(); // Close bottom sheet

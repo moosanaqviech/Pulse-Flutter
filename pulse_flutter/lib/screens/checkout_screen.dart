@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:pulse_flutter/services/facebook_service.dart';
 
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
@@ -725,7 +728,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
 
       debugPrint('✅ Payment successful');
-
+      unawaited(FacebookService.trackPurchase(amount: widget.deal.dealPrice, currency: "CAD"));
       // Step 3: Confirm payment and generate QR code
       debugPrint('🔄 Confirming payment and generating QR code...');
       final purchase = await purchaseService.confirmPayment(

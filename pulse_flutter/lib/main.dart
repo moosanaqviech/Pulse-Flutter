@@ -1,4 +1,6 @@
 // pulse_flutter/lib/main.dart - Updated with safer voucher services
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -8,6 +10,7 @@ import 'firebase_options.dart';
 import 'screens/additional_screens.dart';
 import 'services/auth_service.dart';
 import 'services/deal_service.dart';
+import 'services/facebook_service.dart';
 import 'services/location_service.dart';
 import 'services/payment_service.dart';
 import 'services/purchase_service.dart';
@@ -26,6 +29,8 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  //unawaited(FacebookService.initialize());
+  await FacebookService.initialize();
   
   // Configure Stripe with new API
   Stripe.publishableKey = Constants.stripePublishableKey;
@@ -74,10 +79,15 @@ class _AppWrapperState extends State<AppWrapper> {
   @override
   void initState() {
     super.initState();
+    _trackAppLaunch();
     // Set up voucher notifications after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupVoucherNotifications();
     });
+  }
+
+  void _trackAppLaunch() async {
+    await FacebookService.trackAppLaunch();
   }
 
   void _setupVoucherNotifications() {
