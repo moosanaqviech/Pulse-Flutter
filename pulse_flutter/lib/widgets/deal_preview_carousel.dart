@@ -204,6 +204,7 @@ class _DealPreviewCard extends StatelessWidget {
                 ),
                 
                 // Discount badge (top-left)
+                if(deal.discountPercentage>0)
                 Positioned(
                   top: 12,
                   left: 12,

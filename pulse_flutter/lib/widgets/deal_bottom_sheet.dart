@@ -19,7 +19,7 @@ import 'custom_button.dart';
 class DealBottomSheet extends StatefulWidget {
   final Deal deal;
   final VoidCallback onPurchase;
-
+  
   const DealBottomSheet({
     super.key,
     required this.deal,
@@ -39,6 +39,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   double? _businessRating;
   int? _totalRatings;
   bool _loadingRating = true;
+  bool _isDescriptionExpanded = false;
   @override
   void initState() {
     super.initState();
@@ -634,41 +635,41 @@ Widget _buildHeroImage(BuildContext context) {
             ),
           ),
         ),
-        
+        if(widget.deal.discountPercentage > 0) 
         // ✅ TOP-LEFT: Discount badge - with IgnorePointer
-        Positioned(
-          top: 12,
-          left: 12,
-          child: IgnorePointer(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.red.shade600,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+          Positioned(
+            top: 12,
+            left: 12,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade600,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '${widget.deal.discountPercentage}% OFF',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
-                ],
-              ),
-              child: Text(
-                '${widget.deal.discountPercentage}% OFF',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
             ),
           ),
-        ),
-        
-        // ✅ TOP-RIGHT: Image counter - with IgnorePointer
+          
+        // ✅ TOP-RIGHT: Image counter - with IgnorePointer below remaining quantity
         if (images.length > 1)
           Positioned(
-            top: 12,
+            top: widget.deal.remainingQuantity <= 5 ? 50 : 12,
             right: 12,
             child: IgnorePointer(
               child: Container(
@@ -689,6 +690,27 @@ Widget _buildHeroImage(BuildContext context) {
             ),
           ),
         
+        //✅ TOP-RIGHT: Remaining quantity below 5 counter
+        if (widget.deal.remainingQuantity <= 5 && widget.deal.remainingQuantity > 0)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade600,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Only ${widget.deal.remainingQuantity} left!',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
         // ✅ BOTTOM-CENTER: Dot indicators - with IgnorePointer
         if (images.length > 1)
           Positioned(
@@ -723,6 +745,39 @@ Widget _buildHeroImage(BuildContext context) {
               ),
             ),
           ),
+
+        // Time remaining indicator (Bottom-right of image)
+        if (_showTimeRemaining())
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.access_time,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _getTimeRemainingText(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ]
+              )
+              )
+            )
       ],
     ),
   );
@@ -924,39 +979,39 @@ Widget _buildHeroImage(BuildContext context) {
             ),
             // ✅ ADD RATING HERE
             if (!_loadingRating && _businessRating != null && _totalRatings != null) ...[
-      const SizedBox(width: 8),
-      Icon(
-        Icons.star,
-        color: Colors.amber,
-        size: 14,
-      ),
-      const SizedBox(width: 2),
-      Text(
-        _businessRating!.toStringAsFixed(1),
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      ),
-      Text(
-        ' ($_totalRatings)',
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey.shade600,
-        ),
-      ),
-    ] else if (_loadingRating) ...[
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 12,
-        height: 12,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: Colors.grey.shade400,
-        ),
-      ),
-    ],
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.star,
+                  color: Colors.amber,
+                  size: 14,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  _businessRating!.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  ' ($_totalRatings)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ] else if (_loadingRating) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.grey.shade400,
+                ),
+              ),
+            ],
           ],
         ),
         
@@ -1011,24 +1066,8 @@ Widget _buildHeroImage(BuildContext context) {
         ),
         
         const SizedBox(height: 6),
+        _buildExpandableDescription()
         
-        Row(
-          children: [
-            // Business description with subtle styling
-            Expanded(
-              child: Text(
-                widget.deal.description,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            )
-          ],
-        )
       ],
     ),
   );
@@ -1107,8 +1146,9 @@ Widget _buildHeroImage(BuildContext context) {
              
             ],
           ),
+          
           const SizedBox(height: 6),
-          Row(
+          /*Row(
             
              children: [
           // Business name with subtle styling
@@ -1126,6 +1166,8 @@ Widget _buildHeroImage(BuildContext context) {
           )
              ]
           )
+        */
+          _buildExpandableDescription()
         ],
       ),
     );
@@ -1420,6 +1462,55 @@ Widget _buildDescriptionSection(BuildContext context) {
   );
 }
 
+Widget _buildExpandableDescription() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: widget.deal.description,
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          
+        );
+        textPainter.layout(maxWidth: constraints.maxWidth);
+        final isOverflowing = textPainter.didExceedMaxLines;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.deal.description,
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+              maxLines: _isDescriptionExpanded ? null : 2,
+              overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+            
+            if (isOverflowing)
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isDescriptionExpanded = !_isDescriptionExpanded;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _isDescriptionExpanded ? 'Show less' : 'Show more',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 Future<void> _loadBusinessRating() async {
   if (widget.deal.businessId.isEmpty) {
     setState(() => _loadingRating = false);
@@ -1544,5 +1635,37 @@ Widget _buildPriceSection(BuildContext context) {
 }
 
 
+DateTime? _getExpirationDateTime() {
+  
+  return DateTime.fromMillisecondsSinceEpoch(
+    widget.deal.expirationTime * 1000
+  );
+}
+
+// Alternative cleaner version using the helper:
+bool _showTimeRemaining() {
+  final expirationDateTime = _getExpirationDateTime();
+  if (expirationDateTime == null) return false;
+  
+  final now = DateTime.now();
+  final timeLeft = widget.deal.expirationDate.difference(now);
+  return timeLeft.inHours <= 24 && timeLeft.inHours > 0;
+}
+
+String _getTimeRemainingText() {
+
+  final now = DateTime.now();
+  final timeLeft = widget.deal.expirationDate.difference(now);
+  
+  if (timeLeft.inHours > 0) {
+    return '${timeLeft.inHours}h left';
+  } else if (timeLeft.inMinutes > 0) {
+    return '${timeLeft.inMinutes}m left';
+  } else if (timeLeft.inSeconds > 0) {
+    return 'Ending soon';
+  } else {
+    return 'Expired';
+  }
+}
 }
 
