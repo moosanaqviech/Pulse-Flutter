@@ -1,6 +1,8 @@
 // pulse_flutter/lib/main.dart - Updated with safer voucher services
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -21,6 +23,7 @@ import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'utils/app_theme.dart';
 import 'utils/constants.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,10 +36,14 @@ void main() async {
   await FacebookService.initialize();
   
   // Configure Stripe with new API
-  Stripe.publishableKey = Constants.stripePublishableKey;
+  Stripe.publishableKey = Constants.stripeLivePublishableKey;
   Stripe.merchantIdentifier = 'merchant.com.pulse.consumer';
   await Stripe.instance.applySettings();
   
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  
+
   runApp(const PulseApp());
 }
 

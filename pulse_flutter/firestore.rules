@@ -1,0 +1,274 @@
+// ============================================
+// PULSE PLATFORM - FIREBASE SECURITY RULES
+// Critical: Deploy these BEFORE going to production!
+// ============================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Check if user owns the business
+    function isBusinessOwner(businessId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/businesses/$(businessId)) &&
+             get(/databases/$(database)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
+    }
+    
+    // Check if data has required fields
+    function hasRequiredFields(fields) {
+      return fields.toSet().difference(request.resource.data.keys().toSet()).size() == 0;
+    }
+    
+    // Check if email is valid format
+    function isValidEmail(email) {
+      return email.matches('.*@.*\\..*');
+    }
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+  // Users can read/write their own profile
+  allow read, write: if isAuthenticated() && isOwner(userId);
+  
+  // Simplified user creation rule
+  allow create: if isAuthenticated() && 
+                  request.auth.uid == userId &&
+                  request.resource.data.userId == request.auth.uid &&
+                  request.resource.data.keys().hasAll(['userId', 'email']) &&
+                  isValidEmail(request.resource.data.email);
+  
+  // User update rule
+  allow update: if isAuthenticated() && 
+                  isOwner(userId) &&
+                  request.resource.data.userId == resource.data.userId &&
+                  request.resource.data.email == resource.data.email;
+}
+    // ============================================
+    // PAYMENT METHODS SUBCOLLECTION - NEW RULE!
+    // ============================================
+    match /users/{userId}/payment_methods/{paymentMethodId} {
+      // Users can read/write their own payment methods
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+
+      // Validation for payment method creation
+      allow create: if isAuthenticated() && 
+                      request.auth.uid == userId &&
+                      request.resource.data.userId == userId;
+
+      // Validation for payment method updates  
+      allow update: if isAuthenticated() && 
+                      request.auth.uid == userId &&
+                      // Cannot change user ownership
+                      request.resource.data.userId == resource.data.userId;
+    }
+    
+    // ============================================
+    // BUSINESSES COLLECTION
+    // ============================================
+    match /businesses/{businessId} {
+      // Business owners can read/write their business
+      allow read, write: if isAuthenticated() && isBusinessOwner(businessId);
+      
+      // Business creation validation
+      allow create: if isAuthenticated() && 
+                      hasRequiredFields(['ownerId', 'businessName', 'email', 'createdAt']) &&
+                      request.resource.data.ownerId == request.auth.uid &&
+                      isValidEmail(request.resource.data.email);
+      
+      // Business update validation
+      allow update: if isAuthenticated() && 
+                      isBusinessOwner(businessId) &&
+                      // Cannot change owner after creation
+                      request.resource.data.ownerId == resource.data.ownerId;
+      
+      // Anyone can read basic business info for discovery
+      allow read: if resource.data.get('isActive', false) == true;
+    }
+    
+    // ============================================
+    // DEALS COLLECTION
+    // ============================================
+    match /deals/{dealId} {
+      // Anyone can read active deals (for consumer app)
+      allow read: if resource.data.get('isActive', false) == true;
+      
+      // Business owners can create deals for their business
+      allow create: if isAuthenticated() 
+      
+      // Business owners can update their own deals
+      allow update: if isAuthenticated() && 
+                      isBusinessOwner(resource.data.businessId) &&
+                      // Cannot change business ownership
+                      request.resource.data.businessId == resource.data.businessId;
+      
+      // Business owners can delete their own deals
+      allow delete: if isAuthenticated() && isBusinessOwner(resource.data.businessId);
+    }
+    
+    // ============================================
+    // PURCHASES COLLECTION
+    // ============================================
+    match /purchases/{purchaseId} {
+      // Users can read their own purchases
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Users can create purchases for themselves
+      allow create: if isAuthenticated() && 
+                      request.resource.data.keys().hasAll(['userId', 'dealId']) &&
+                      request.resource.data.userId != '' &&
+                      request.resource.data.dealId != '' &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.amount > 0;
+      
+      // Users can update their own purchases (for payment status, etc.)
+      allow update: if isAuthenticated() && 
+                      isOwner(resource.data.userId) &&
+                      // Cannot change core purchase data
+                      request.resource.data.userId == resource.data.userId &&
+                      request.resource.data.dealId == resource.data.dealId &&
+                      request.resource.data.totalAmount == resource.data.totalAmount;
+      
+      // Business owners can read purchases for their deals
+      allow read: if isAuthenticated() && isBusinessOwner(resource.data.businessId);
+      
+      // Business owners can update purchase status (for redemption)
+      allow update: if isAuthenticated() && 
+                      // Can only update redemption status
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRedeemed', 'redeemedAt', 'updatedAt']);
+                      
+                      
+    }
+    
+    // ============================================
+    // CATEGORIES COLLECTION (Read-only reference data)
+    // ============================================
+    match /categories/{categoryId} {
+      allow read: if true; // Public reference data
+      allow write: if false; // Only admins can modify (via Functions)
+    }
+    
+    // ============================================
+    // ANALYTICS COLLECTION
+    // ============================================
+    match /analytics/{document=**} {
+      // Only business owners can read their analytics
+      allow read: if isAuthenticated() && 
+                    resource.data.get('businessId', '') != '' &&
+                    isBusinessOwner(resource.data.businessId);
+      
+      // Only Functions can write analytics
+      allow write: if false;
+    }
+    
+    // ============================================
+    // NOTIFICATIONS COLLECTION
+    // ============================================
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Users can update notification status (mark as read)
+      allow update: if isAuthenticated() && 
+                      isOwner(resource.data.userId) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'readAt']);
+      
+      // Only Functions can create notifications
+      allow create: if false;
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // RATE LIMITING COLLECTION (Functions only)
+    // ============================================
+    match /rate_limits/{document=**} {
+      allow read, write: if false; // Only Functions can access
+    }
+    
+    // ============================================
+    // ADMIN COLLECTIONS (Functions only)
+    // ============================================
+    match /admin/{document=**} {
+      allow read, write: if false; // Only Functions can access
+    }
+    
+    match /system/{document=**} {
+      allow read, write: if false; // Only Functions can access
+    }
+    
+    // ============================================
+    // REVIEWS COLLECTION (Future feature)
+    // ============================================
+    match /reviews/{reviewId} {
+      // Users can read all reviews
+      allow read: if true;
+      
+      // Users can create reviews for purchases they made
+      allow create: if isAuthenticated() && 
+                      hasRequiredFields(['userId', 'businessId', 'purchaseId', 'rating', 'createdAt']) &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+                      // User must own the purchase being reviewed
+                      exists(/databases/$(database)/documents/purchases/$(request.resource.data.purchaseId)) &&
+                      get(/databases/$(database)/documents/purchases/$(request.resource.data.purchaseId)).data.userId == request.auth.uid;
+      
+      // Users can update their own reviews
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Users can delete their own reviews
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+    
+    // ============================================
+    // FAVORITES COLLECTION
+    // ============================================
+    match /favorites/{favoriteId} {
+      // Users can manage their own favorites
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      allow create: if isAuthenticated() && 
+                      hasRequiredFields(['userId', 'dealId', 'createdAt']) &&
+                      request.resource.data.userId == request.auth.uid;
+    }
+    
+    // ============================================
+    // VOUCHERS/RECEIPTS COLLECTION
+    // ============================================
+    match /vouchers/{voucherId} {
+      // Users can read their own vouchers
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Business owners can read vouchers for their business
+      allow read: if isAuthenticated() && isBusinessOwner(resource.data.businessId);
+      
+      // Only Functions can create vouchers
+      allow create: if false;
+      
+      // Business owners can update redemption status
+      allow update: if isAuthenticated() && 
+                      isBusinessOwner(resource.data.businessId) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRedeemed', 'redeemedAt', 'redeemedBy']);
+    }
+    
+    // ============================================
+    // BLOCK ALL OTHER COLLECTIONS
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

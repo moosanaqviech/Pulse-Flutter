@@ -156,7 +156,7 @@ class PurchaseService extends ChangeNotifier {
   }) async {
     try {
       debugPrint('🔵 Creating purchase record for deal: ${deal.id}');
-
+      
       final purchaseData = {
         'userId': userId,
         'dealId': deal.id,
@@ -165,12 +165,14 @@ class PurchaseService extends ChangeNotifier {
         'businessName': deal.businessName,
         'amount': deal.dealPrice,
         'status': 'pending',
-        'purchaseTime': DateTime.now().millisecondsSinceEpoch,
+        'purchaseTime': DateTime.now(),
         'expirationTime': deal.expirationTime,
         'imageUrl': deal.imageUrl,
         'dealSnapshot': deal.toMap(),
       };
-
+      
+      print('🔍 Purchase data being sent: ${purchaseData.keys.toList()}');
+      print('🔍 Full purchase data: $purchaseData');
       final docRef = await _firestore.collection('purchases').add(purchaseData);
       
       debugPrint('✅ Purchase record created: ${docRef.id}');

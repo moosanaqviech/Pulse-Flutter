@@ -69,10 +69,24 @@ async function handleAccountUpdated(account: Stripe.Account) {
     .get();
 
   if (!businessQuery.empty) {
+    // Check if account is restricted
+    const isRestricted = account.requirements?.disabled_reason !== null || 
+                        (account.requirements?.currently_due && account.requirements.currently_due.length > 0);
+    
+    // Determine actual status
+    let accountStatus = "pending";
+    if (isRestricted) {
+      accountStatus = "restricted";
+    } else if (account.charges_enabled && account.payouts_enabled) {
+      accountStatus = "active";
+    }
+
     await businessQuery.docs[0].ref.update({
-      stripeAccountOnboarded: account.charges_enabled && account.payouts_enabled,
+      stripeAccountOnboarded: account.charges_enabled && account.payouts_enabled && !isRestricted,
       stripePayoutsEnabled: account.payouts_enabled,
-      stripeAccountStatus: account.charges_enabled ? "active" : "pending",
+      stripeAccountStatus: accountStatus,
+      stripeRequirementsCurrentlyDue: account.requirements?.currently_due || [],
+      stripeDisabledReason: account.requirements?.disabled_reason || null,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }

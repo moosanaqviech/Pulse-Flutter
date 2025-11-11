@@ -1,0 +1,128 @@
+// ============================================
+// PULSE PLATFORM - FIREBASE STORAGE RULES
+// Critical: Deploy these BEFORE going to production!
+// ============================================
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isValidImageFile() {
+      return request.resource != null &&
+             request.resource.size < 5 * 1024 * 1024 && // 5MB limit
+             request.resource.contentType.matches('image/.*');
+    }
+    
+    function isBusinessOwner(businessId) {
+      return request.auth != null &&
+             firestore.exists(/databases/(default)/documents/businesses/$(businessId)) &&
+             firestore.get(/databases/(default)/documents/businesses/$(businessId)).data.ownerId == request.auth.uid;
+    }
+    
+    // ============================================
+    // BUSINESS IMAGES
+    // ============================================
+    
+    // Business profile images
+    match /businesses/{businessId}/profile/{imageId} {
+      allow read: if true; // Public read for business discovery
+      allow write: if isAuthenticated() && 
+                     isBusinessOwner(businessId) && 
+                     isValidImageFile();
+      allow delete: if isAuthenticated() && isBusinessOwner(businessId);
+    }
+    
+    // Business logo images
+    match /businesses/{businessId}/logo/{imageId} {
+      allow read: if true; // Public read for business discovery
+      allow write: if isAuthenticated() && 
+                     isBusinessOwner(businessId) && 
+                     isValidImageFile();
+      allow delete: if isAuthenticated() && isBusinessOwner(businessId);
+    }
+    
+    // ============================================
+    // DEAL IMAGES
+    // ============================================
+    
+    // Deal images - public read, business owner write
+		match /deals/{imageFileName}{
+			allow read: if true; // Public read for deal discovery
+      
+      allow write: if isAuthenticated() && 
+                     isValidImageFile();
+                    
+      
+      allow delete: if isAuthenticated() ;
+    }
+    
+    // ============================================
+    // USER PROFILE IMAGES
+    // ============================================
+    
+    // User profile images
+    match /users/{userId}/profile/{imageId} {
+      allow read: if true; // Public read for user profiles/reviews
+      allow write: if isAuthenticated() && 
+                     isOwner(userId) && 
+                     isValidImageFile();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // ============================================
+    // TEMPORARY UPLOADS
+    // ============================================
+    
+    // Temporary upload folder - authenticated users only
+    match /temp/{userId}/{allPaths=**} {
+      allow read, write: if isAuthenticated() && 
+                           isOwner(userId) &&
+                           isValidImageFile();
+      // Auto-cleanup handled by Cloud Functions
+    }
+    
+    // ============================================
+    // RECEIPTS/VOUCHERS (if storing images)
+    // ============================================
+    
+    // Receipt images - only owner can access
+    match /receipts/{userId}/{receiptId} {
+      allow read, write: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // ============================================
+    // SYSTEM/ADMIN FILES
+    // ============================================
+    
+    // System files - no user access
+    match /system/{allPaths=**} {
+      allow read, write: if false; // Only server-side access
+    }
+    
+    // Admin files - no user access
+    match /admin/{allPaths=**} {
+      allow read, write: if false; // Only server-side access
+    }
+    
+    // ============================================
+    // BLOCK ALL OTHER PATHS
+    // ============================================
+    
+    // Deny access to any other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

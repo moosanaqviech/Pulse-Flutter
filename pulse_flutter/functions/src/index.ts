@@ -18,7 +18,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "TEST", {
 /**
  * Create Payment Intent
  */
-export const createPaymentIntent = onCall(async (request) => {
+export const createPaymentIntentOld = onCall(async (request) => {
   try {
     // Verify authentication
     if (!request.auth) {
@@ -662,10 +662,9 @@ export const redeemVoucher = onCall(async (request) => {
 /**
  * Create Payment Intent with Setup Future Usage (Enhanced version)
  */
-// Add these functions to your existing functions/src/index.ts file
 
 /**
- * Create Payment Intent with Setup Future Usage (Enhanced version)
+ * Create Payment Intent with Setup Future Usage (Enhanced MARKETPLACE VERSION)
  */
 export const createPaymentIntentWithSetup = onCall(async (request) => {
   try {
@@ -687,24 +686,15 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
 
     // Validate inputs
     if (!dealId || dealId.length === 0) {
-      throw new HttpsError(
-        "invalid-argument",
-        "dealId is required"
-      );
+      throw new HttpsError("invalid-argument", "dealId is required");
     }
 
     if (!purchaseId || purchaseId.length === 0) {
-      throw new HttpsError(
-        "invalid-argument",
-        "purchaseId is required"
-      );
+      throw new HttpsError("invalid-argument", "purchaseId is required");
     }
 
     if (amount <= 0) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Amount must be greater than 0"
-      );
+      throw new HttpsError("invalid-argument", "Amount must be greater than 0");
     }
 
     // Validate currency
@@ -723,10 +713,7 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
       .get();
 
     if (!dealDoc.exists) {
-      throw new HttpsError(
-        "not-found",
-        "Deal not found"
-      );
+      throw new HttpsError("not-found", "Deal not found");
     }
 
     const deal = dealDoc.data();
@@ -736,24 +723,15 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
 
     // Verify deal availability
     if (!deal.isActive) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Deal is no longer active"
-      );
+      throw new HttpsError("failed-precondition", "Deal is no longer active");
     }
 
     if (deal.remainingQuantity <= 0) {
-      throw new HttpsError(
-        "resource-exhausted",
-        "Deal is sold out"
-      );
+      throw new HttpsError("resource-exhausted", "Deal is sold out");
     }
 
     if (Date.now() > toMilliseconds(deal.expirationTime)) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Deal has expired"
-      );
+      throw new HttpsError("failed-precondition", "Deal has expired");
     }
 
     // Verify amount
@@ -766,6 +744,34 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
         `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
       );
     }
+
+    // ✅ NEW: Get business's connected account
+    const businessDoc = await admin.firestore()
+      .collection("businesses")
+      .doc(deal.businessId)
+      .get();
+
+    if (!businessDoc.exists) {
+      throw new HttpsError("not-found", "Business not found");
+    }
+
+    const business = businessDoc.data();
+    if (!business) {
+      throw new HttpsError("not-found", "Business data not found");
+    }
+
+    // ✅ NEW: Check if business has connected account
+    const connectedAccountId = business.stripeConnectedAccountId;
+    if (!connectedAccountId) {
+      throw new HttpsError(
+        "failed-precondition", 
+        "Business has not completed payment setup"
+      );
+    }
+
+    // ✅ NEW: Calculate platform fee (8%)
+    const platformFeePercentage = 0.08;
+    const platformFeeAmount = Math.round(expectedAmount * platformFeePercentage);
 
     // Get user data - but don't require it to exist for consumers
     const userDoc = await admin.firestore()
@@ -824,19 +830,25 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
       }
     }
 
-    // Create Payment Intent parameters
+    // ✅ NEW: Create marketplace payment intent parameters
     const paymentIntentParams: any = {
       amount: expectedAmount,
       currency: currency,
+      application_fee_amount: platformFeeAmount, // Platform fee
+      transfer_data: {
+        destination: connectedAccountId, // Money goes to business
+      },
       metadata: {
         userId: userId,
         dealId: dealId,
         purchaseId: purchaseId,
+        businessId: deal.businessId,
         dealTitle: String(deal.title || "Unknown"),
         businessName: String(deal.businessName || "Unknown"),
         userEmail: userEmail,
+        platformFee: (platformFeeAmount / 100).toFixed(2),
       },
-      description: `Purchase: ${deal.title} at ${deal.businessName}`,
+      description: `${deal.title} at ${deal.businessName}`,
     };
 
     // Add customer and setup future usage if requested
@@ -864,7 +876,8 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
         stripePaymentIntentId: paymentIntent.id,
       });
 
-    console.log("Payment Intent created with setup:", paymentIntent.id, "Purchase ID:", purchaseId);
+    console.log("✅ Marketplace Payment Intent created with setup:", paymentIntent.id);
+    console.log(`💰 Amount: $${expectedAmount/100}, Platform fee: $${platformFeeAmount/100}, Business gets: $${(expectedAmount-platformFeeAmount)/100}`);
 
     return {
       success: true,
@@ -872,7 +885,7 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
       paymentIntentId: paymentIntent.id,
     };
   } catch (error: any) {
-    console.error("Error creating payment intent with setup:", error);
+    console.error("❌ Error creating marketplace payment intent with setup:", error);
 
     if (error instanceof HttpsError) {
       throw error;
@@ -886,7 +899,7 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
 });
 
 /**
- * Create Payment Intent with Saved Payment Method
+ * Create Payment Intent with Saved Payment Method (MARKETPLACE VERSION)
  */
 export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
   try {
@@ -970,6 +983,34 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
       );
     }
 
+    // ✅ NEW: Get business's connected account
+    const businessDoc = await admin.firestore()
+      .collection("businesses")
+      .doc(deal.businessId)
+      .get();
+
+    if (!businessDoc.exists) {
+      throw new HttpsError("not-found", "Business not found");
+    }
+
+    const business = businessDoc.data();
+    if (!business) {
+      throw new HttpsError("not-found", "Business data not found");
+    }
+
+    // ✅ NEW: Check if business has connected account
+    const connectedAccountId = business.stripeConnectedAccountId;
+    if (!connectedAccountId) {
+      throw new HttpsError(
+        "failed-precondition", 
+        "Business has not completed payment setup"
+      );
+    }
+
+    // ✅ NEW: Calculate platform fee (8%)
+    const platformFeePercentage = 0.08;
+    const platformFeeAmount = Math.round(expectedAmount * platformFeePercentage);
+
     // Verify payment method belongs to customer
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
     if (paymentMethod.customer !== userData.stripeCustomerId) {
@@ -979,7 +1020,7 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
     // For consumers, use auth email if available
     const userEmail = userData?.email || request.auth.token.email || "unknown";
 
-    // Create Payment Intent with saved payment method
+    // ✅ NEW: Create marketplace payment intent with saved payment method
     const paymentIntent = await stripe.paymentIntents.create({
       amount: expectedAmount,
       currency: currency,
@@ -987,16 +1028,22 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
       payment_method: paymentMethodId,
       confirmation_method: "manual",
       confirm: true,
-      return_url: "https://your-app.com/return", // You can customize this
+      return_url: "https://your-app.com/return",
+      application_fee_amount: platformFeeAmount, // Platform fee
+      transfer_data: {
+        destination: connectedAccountId, // Money goes to business
+      },
       metadata: {
         userId: userId,
         dealId: dealId,
         purchaseId: purchaseId,
+        businessId: deal.businessId,
         dealTitle: String(deal.title || "Unknown"),
         businessName: String(deal.businessName || "Unknown"),
         userEmail: userEmail,
+        platformFee: (platformFeeAmount / 100).toFixed(2),
       },
-      description: `Purchase: ${deal.title} at ${deal.businessName}`,
+      description: `${deal.title} at ${deal.businessName}`,
     });
 
     // Reserve inventory
@@ -1015,7 +1062,8 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
         stripePaymentIntentId: paymentIntent.id,
       });
 
-    console.log("Payment Intent with saved method created:", paymentIntent.id);
+    console.log("✅ Marketplace Payment Intent with saved method created:", paymentIntent.id);
+    console.log(`💰 Amount: $${expectedAmount/100}, Platform fee: $${platformFeeAmount/100}, Business gets: $${(expectedAmount-platformFeeAmount)/100}`);
 
     return {
       success: true,
@@ -1024,7 +1072,7 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
       status: paymentIntent.status,
     };
   } catch (error: any) {
-    console.error("Error creating payment intent with saved method:", error);
+    console.error("❌ Error creating marketplace payment intent with saved method:", error);
 
     if (error instanceof HttpsError) {
       throw error;
@@ -1041,7 +1089,6 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
     );
   }
 });
-
 /**
  * Save Payment Method After Payment
  */
@@ -1384,3 +1431,164 @@ export const setDefaultPaymentMethod = onCall(async (request) => {
   }
 });
 
+// UPDATE YOUR EXISTING createPaymentIntent function with this code:
+
+export const createPaymentIntent = onCall(async (request) => {
+  try {
+    // Verify authentication
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "User must be authenticated"
+      );
+    }
+
+    const data = request.data;
+    const dealId = String(data.dealId || "");
+    const purchaseId = String(data.purchaseId || "");
+    const amount = Number(data.amount || 0);
+    const currency = String(data.currency || "cad").toLowerCase();
+    const userId = String(request.auth.uid);
+
+    // Validate inputs
+    if (!dealId || dealId.length === 0) {
+      throw new HttpsError("invalid-argument", "dealId is required");
+    }
+
+    if (!purchaseId || purchaseId.length === 0) {
+      throw new HttpsError("invalid-argument", "purchaseId is required");
+    }
+
+    if (amount <= 0) {
+      throw new HttpsError("invalid-argument", "Amount must be greater than 0");
+    }
+
+    // Get deal from Firestore
+    const dealDoc = await admin.firestore()
+      .collection("deals")
+      .doc(dealId)
+      .get();
+
+    if (!dealDoc.exists) {
+      throw new HttpsError("not-found", "Deal not found");
+    }
+
+    const deal = dealDoc.data();
+    if (!deal) {
+      throw new HttpsError("not-found", "Deal data not found");
+    }
+
+    // Verify deal availability
+    if (!deal.isActive) {
+      throw new HttpsError("failed-precondition", "Deal is no longer active");
+    }
+
+    if (deal.remainingQuantity <= 0) {
+      throw new HttpsError("resource-exhausted", "Deal is sold out");
+    }
+
+    // Verify amount
+    const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
+    const providedAmount = Math.round(amount * 100);
+
+    if (Math.abs(expectedAmount - providedAmount) > 1) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
+      );
+    }
+
+    // ✅ NEW: Get business's connected account
+    const businessDoc = await admin.firestore()
+      .collection("businesses")
+      .doc(deal.businessId)
+      .get();
+
+    if (!businessDoc.exists) {
+      throw new HttpsError("not-found", "Business not found");
+    }
+
+    const business = businessDoc.data();
+    if (!business) {
+      throw new HttpsError("not-found", "Business data not found");
+    }
+
+    // ✅ NEW: Check if business has connected account
+    const connectedAccountId = business.stripeConnectedAccountId;
+    if (!connectedAccountId) {
+      throw new HttpsError(
+        "failed-precondition", 
+        "Business has not completed payment setup"
+      );
+    }
+
+    // ✅ NEW: Calculate platform fee (e.g., 8%)
+    const platformFeePercentage = 0.08; // 8% platform fee
+    const platformFeeAmount = Math.round(expectedAmount * platformFeePercentage);
+
+    // Get user data
+    const userDoc = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .get();
+
+    const userData = userDoc.exists ? userDoc.data() : {};
+
+    // ✅ NEW: Create marketplace payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: expectedAmount,
+      currency: currency,
+      application_fee_amount: platformFeeAmount, // Your platform fee
+      transfer_data: {
+        destination: connectedAccountId, // Money goes to business
+      },
+      metadata: {
+        userId: userId,
+        dealId: dealId,
+        purchaseId: purchaseId,
+        businessId: deal.businessId,
+        dealTitle: String(deal.title || "Unknown"),
+        businessName: String(deal.businessName || "Unknown"),
+        userEmail: String(userData?.email || "unknown"),
+        platformFee: (platformFeeAmount / 100).toFixed(2),
+      },
+      description: `${deal.title} at ${deal.businessName}`,
+    });
+
+    // Reserve inventory
+    await admin.firestore()
+      .collection("deals")
+      .doc(dealId)
+      .update({
+        remainingQuantity: admin.firestore.FieldValue.increment(-1),
+      });
+
+    // Update purchase with payment intent ID
+    await admin.firestore()
+      .collection("purchases")
+      .doc(purchaseId)
+      .update({
+        stripePaymentIntentId: paymentIntent.id,
+      });
+
+    console.log("✅ Marketplace Payment Intent created:", paymentIntent.id);
+    console.log(`💰 Amount: $${expectedAmount/100}, Platform fee: $${platformFeeAmount/100}, Business gets: $${(expectedAmount-platformFeeAmount)/100}`);
+
+    return {
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    };
+  } catch (error: any) {
+    console.error("❌ Error creating marketplace payment intent:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Failed to create payment intent: " + String(error.message || "Unknown error")
+    );
+  }
+});

@@ -112,11 +112,17 @@ export const createAccountLink = onCall(
         throw new HttpsError("invalid-argument", "connectedAccountId is required");
       }
 
+      // Use the URLs provided by the client (deep links for mobile, web URLs for fallback)
+      const finalRefreshUrl = refreshUrl || "https://incandescent-pixie-dd06ee.netlify.app/stripe-refresh";
+      const finalReturnUrl = returnUrl || "https://incandescent-pixie-dd06ee.netlify.app/stripe-complete";
+      
+      console.log("🔵 Using URLs:", { finalRefreshUrl, finalReturnUrl });
       console.log("🔵 About to create Stripe account link...");
+      
       const accountLink = await stripe.accountLinks.create({
         account: connectedAccountId,
-        refresh_url: "https://incandescent-pixie-dd06ee.netlify.app/stripe-refresh",
-        return_url: "https://incandescent-pixie-dd06ee.netlify.app/stripe-complete",
+        refresh_url: finalRefreshUrl,
+        return_url: finalReturnUrl,
         type: "account_onboarding",
       });
       
@@ -157,6 +163,10 @@ export const getAccountStatus = onCall(
 
     const account = await stripe.accounts.retrieve(connectedAccountId);
 
+    // Check if account is restricted
+    const isRestricted = account.requirements?.disabled_reason !== null || 
+                        (account.requirements?.currently_due && account.requirements.currently_due.length > 0);
+
     const businessQuery = await admin
       .firestore()
       .collection("businesses")
@@ -166,14 +176,25 @@ export const getAccountStatus = onCall(
 
     if (!businessQuery.empty) {
       const businessDoc = businessQuery.docs[0];
+      
+      // Determine actual status
+      let accountStatus = "pending";
+      if (isRestricted) {
+        accountStatus = "restricted";
+      } else if (account.charges_enabled && account.payouts_enabled) {
+        accountStatus = "active";
+      }
+
       const updateData: any = {
-        stripeAccountOnboarded: account.charges_enabled && account.payouts_enabled,
+        stripeAccountOnboarded: account.charges_enabled && account.payouts_enabled && !isRestricted,
         stripePayoutsEnabled: account.payouts_enabled,
-        stripeAccountStatus: account.charges_enabled ? "active" : "pending",
+        stripeAccountStatus: accountStatus,
+        stripeRequirementsCurrentlyDue: account.requirements?.currently_due || [],
+        stripeDisabledReason: account.requirements?.disabled_reason || null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      if (account.charges_enabled && account.payouts_enabled) {
+      if (account.charges_enabled && account.payouts_enabled && !isRestricted) {
         const currentData = businessDoc.data();
         if (!currentData.stripeOnboardingCompletedAt) {
           updateData.stripeOnboardingCompletedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -188,7 +209,10 @@ export const getAccountStatus = onCall(
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       detailsSubmitted: account.details_submitted,
-      accountStatus: account.charges_enabled ? "active" : "pending",
+      accountStatus: isRestricted ? "restricted" : (account.charges_enabled ? "active" : "pending"),
+      isRestricted: isRestricted,
+      disabledReason: account.requirements?.disabled_reason,
+      currentlyDue: account.requirements?.currently_due || [],
     };
   }
 );

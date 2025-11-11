@@ -96,7 +96,7 @@ class PaymentService extends ChangeNotifier {
       _setError('Failed to initialize payment');
       return false;
     }
-
+  
     PaymentDebugger.logStep('Payment Intent created successfully');
 
     // If using saved payment method, process automatically
