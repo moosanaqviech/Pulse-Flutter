@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
 import '../utils/payment_debugger.dart';
+import 'tax_service.dart';
 
 class PaymentService extends ChangeNotifier {
   bool _isLoading = false;
@@ -59,7 +60,7 @@ class PaymentService extends ChangeNotifier {
       details: 'Deal: ${deal.id}, Amount: \$${deal.dealPrice}');
 
     String? clientSecret;
-
+    final finalAmount = await getFinalAmount(deal);
     if (savedPaymentMethodId != null) {
       // Use saved payment method for 1-tap purchase
       PaymentDebugger.startTimer('CREATE_PAYMENT_INTENT_SAVED');
@@ -69,7 +70,7 @@ class PaymentService extends ChangeNotifier {
         dealId: deal.id,
         userId: userId,
         purchaseId: purchaseId,
-        amount: deal.dealPrice,
+        amount: finalAmount,
         description: '${deal.title} at ${deal.businessName}',
         paymentMethodId: savedPaymentMethodId,
       );
@@ -84,7 +85,7 @@ class PaymentService extends ChangeNotifier {
         dealId: deal.id,
         userId: userId,
         purchaseId: purchaseId,
-        amount: deal.dealPrice,
+        amount: finalAmount,
         description: '${deal.title} at ${deal.businessName}',
         setupFutureUsage: saveCard,
       );
@@ -444,6 +445,22 @@ class PaymentService extends ChangeNotifier {
         return e.message ?? 'Payment failed. Please try again.';
     }
   }
+
+  // Calculate final amount including tax if applicable
+  Future<double> getFinalAmount(Deal deal) async {
+    if (!deal.isTaxApplicable) {
+      return deal.dealPrice; // No tax needed
+    }
+    
+    // Get province from deal location
+    final province = await TaxService.getProvinceFromCoordinates(deal.latitude, deal.longitude);
+    
+    // Calculate tax
+    final tax = TaxService.calculateTax(deal.dealPrice, province!);
+    
+    return deal.dealPrice + tax;
+  }
+  
 
   void _setLoading(bool loading) {
     _isLoading = loading;

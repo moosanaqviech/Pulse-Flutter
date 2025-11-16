@@ -173,7 +173,7 @@ class Purchase {
     );
   }
 
-  static int _parseTimestampToInt(dynamic value) {
+  static int _parseTimestampToIntOld(dynamic value) {
   if (value == null) return 0;
   
   if (value is int) {
@@ -200,4 +200,40 @@ class Purchase {
 
   @override
   int get hashCode => id.hashCode;
+
+  // ALSO UPDATE the consumer app Purchase model (pulse_flutter/lib/models/purchase.dart)
+// Replace the _parseTimestampToInt method with:
+
+static int _parseTimestampToInt(dynamic value) {
+  if (value == null) {
+    return DateTime.now().millisecondsSinceEpoch;
+  }
+
+  // Handle int (expirationTime format)
+  if (value is int) {
+    return value;
+  }
+  
+  // Handle Timestamp (purchaseTime format)
+  if (value is Timestamp) {
+    return value.toDate().millisecondsSinceEpoch;
+  }
+  
+  // Handle string
+  if (value is String) {
+    try {
+      return DateTime.parse(value).millisecondsSinceEpoch;
+    } catch (e) {
+      print('❌ Failed to parse timestamp string: $value');
+    }
+  }
+  
+  // Handle DateTime
+  if (value is DateTime) {
+    return value.millisecondsSinceEpoch;
+  }
+  
+  print('❌ Unknown timestamp type: ${value.runtimeType}');
+  return DateTime.now().millisecondsSinceEpoch;
+}
 }

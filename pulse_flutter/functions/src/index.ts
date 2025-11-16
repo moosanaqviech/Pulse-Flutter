@@ -110,7 +110,7 @@ export const createPaymentIntentOld = onCall(async (request) => {
     const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
     const providedAmount = Math.round(amount * 100);
 
-    if (Math.abs(expectedAmount - providedAmount) > 1) {
+    if (providedAmount < expectedAmount) {
       throw new HttpsError(
         "invalid-argument",
         `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
@@ -621,6 +621,10 @@ export const redeemVoucher = onCall(async (request) => {
         redeemedBy: request.auth!.uid,
       });
 
+      transaction.update(admin.firestore().collection('deals').doc(purchase.dealId), {
+                  claimCount: admin.firestore.FieldValue.increment(1)
+      });
+
       return {
         id: purchaseDoc.id,
         userId: purchase.userId,
@@ -738,7 +742,7 @@ export const createPaymentIntentWithSetup = onCall(async (request) => {
     const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
     const providedAmount = Math.round(amount * 100);
 
-    if (Math.abs(expectedAmount - providedAmount) > 1) {
+    if (providedAmount < expectedAmount) {
       throw new HttpsError(
         "invalid-argument",
         `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
@@ -976,7 +980,7 @@ export const createPaymentIntentWithSavedMethod = onCall(async (request) => {
     const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
     const providedAmount = Math.round(amount * 100);
 
-    if (Math.abs(expectedAmount - providedAmount) > 1) {
+    if (providedAmount < expectedAmount) {
       throw new HttpsError(
         "invalid-argument",
         `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`
@@ -1491,7 +1495,7 @@ export const createPaymentIntent = onCall(async (request) => {
     const expectedAmount = Math.round(Number(deal.dealPrice) * 100);
     const providedAmount = Math.round(amount * 100);
 
-    if (Math.abs(expectedAmount - providedAmount) > 1) {
+    if (providedAmount < expectedAmount) {
       throw new HttpsError(
         "invalid-argument",
         `Amount mismatch. Expected ${deal.dealPrice}, got ${amount}`

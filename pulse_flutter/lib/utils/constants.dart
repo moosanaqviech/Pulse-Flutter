@@ -5,7 +5,7 @@ class Constants {
   
   // Stripe Configuration (use test keys for development)
   static const String stripePublishableKey = 'pk_test_51SO6Xk5x25xDLFYz4qAoW8OeFxuEvl1wjKWchh99myuZOCpiLRBEgAIlhGckK4MbTgujdGobE6t6v7Vf2KWTD50D00mbKmOTxK';
-  static const String stripeLivePublishableKey = 'pk_live_51QXBjgKjJcnAxMPPHB2pV6ReR1bopHZkbxRQ081ddrn3BfefmcExkGdcdw2iEJCFWGUoD5YdtoFw4ikSieqEYbAu00mKtRjtxY';
+  static const String stripeLivePublishableKey = 'pk_live_51SO6Xk5x25xDLFYzXJ97mVeLgWVhKGVrCFzrB4CxvHP8JDQz1ms3e68G1QePYsHfZc5xd5mwDsNGV6TATdpYw2LE004d9rr037';
   
   // Currency Configuration
   static const String currency = 'cad'; // Changed from 'usd' to 'cad'

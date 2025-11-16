@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:pulse_flutter/mixins/distance_calculator_mixin.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
+import '../services/analytics_service.dart';
 import '../services/facebook_service.dart';
 import '../services/payment_service.dart';
 import '../services/auth_service.dart';
@@ -46,6 +49,10 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
     initDistanceCalculation(widget.deal, autoRefresh: true);
     _loadSavedPaymentMethods();
     _loadBusinessRating();  // ✅ ADD THIS
+    // Track view when user opens deal details
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AnalyticsService.trackDealView(widget.deal.id);
+    });
   }
 
 @override
@@ -86,7 +93,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   }
 
   @override
- Widget build(BuildContext context) {
+ Widget buildX(BuildContext context) {
   return Container(
     decoration: const BoxDecoration(
       color: Colors.white,
@@ -124,20 +131,22 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTextContent(context),
+                      _buildTextContentOld(context),
                       
                       const SizedBox(height: 16),
                       
                       // Price Section with Tax Breakdown
-                      _buildPriceSectionWithTax(context),
+                      _buildPriceSectionWithTaxOld(context),
                       
                       const SizedBox(height: 20),
-                      
                       // Purchase Buttons Section
                       _buildPurchaseButtons(context),
                       
+                      
                       // Add bottom padding for safe area
                       SizedBox(height: MediaQuery.of(context).padding.bottom),
+                      // Add bottom padding to prevent content hiding under button
+                      const SizedBox(height: 100), // ← Important!
                     ],
                   ),
                 ),
@@ -145,66 +154,15 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
             ),
           ),
         ),
+      
+        
       ],
     ),
   );
 }
 
 
-
-  Widget _buildDealImage() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxHeight: 300,
-          minHeight: 150,
-        ),
-        child: Container(
-          width: double.infinity,
-          child: CachedNetworkImage(
-            imageUrl: widget.deal.imageUrl!,
-            fit: BoxFit.contain, // Shows full image without cropping
-            placeholder: (context, url) => Container(
-              height: 200,
-              color: Colors.grey.shade200,
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
-            ),
-            errorWidget: (context, url, error) => Container(
-              height: 200,
-              color: Colors.grey.shade200,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.image_not_supported,
-                    size: 50,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Image not available',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPriceSectionWithTax(BuildContext context) {
+  Widget _buildPriceSectionWithTaxOld(BuildContext context) {
     final dealPrice = widget.deal.dealPrice;
     final originalPrice = widget.deal.originalPrice;
     final savings = originalPrice - dealPrice;
@@ -424,7 +382,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Expires: ${(widget.deal.expirationTime)}',
+                  'Expires: ${(DateTime.fromMillisecondsSinceEpoch( widget.deal.expirationTime))}',
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
               ),
@@ -434,7 +392,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
           const SizedBox(height: 8),
           
           // Remaining quantity
-          Row(
+          /*Row(
             children: [
               Icon(Icons.inventory, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 8),
@@ -445,7 +403,7 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
                 ),
               ),
             ],
-          ),
+          ),*/
         ],
       ),
     );
@@ -690,7 +648,7 @@ Widget _buildHeroImage(BuildContext context) {
             ),
           ),
         
-        //✅ TOP-RIGHT: Remaining quantity below 5 counter
+        //✅ TOP-RIGHT: Remaining quantity below image counter
         if (widget.deal.remainingQuantity <= 5 && widget.deal.remainingQuantity > 0)
           Positioned(
             top: 12,
@@ -777,157 +735,111 @@ Widget _buildHeroImage(BuildContext context) {
                 ]
               )
               )
-            )
-      ],
+            ),
+
+         // Fixed Positioned widget for business info overlay
+        // Subtle business info overlay - individual containers like distance
+        Positioned(
+          bottom: 12,
+          left: 12,
+          right: 12,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Business name and rating - compact container
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 1, 109, 1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.yellowAccent.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.deal.businessName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      // Add rating if available
+                      if (_businessRating != null) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ...List.generate(5, (index) => Icon(
+                              index < _businessRating!.round() 
+                                ? Icons.star 
+                                : Icons.star_border,
+                              size: 12,
+                              color: Colors.amber.shade400,
+                            )),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${_businessRating!.toStringAsFixed(1)} ($_totalRatings)',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Distance - keep as is but match styling
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.blue.shade200),
+                  
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.navigation, 
+                      size: 14, 
+                      color: Color.fromARGB(255, 7, 116, 226),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      distanceDisplayText,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color.fromARGB(255, 7, 116, 226),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        ],
     ),
   );
 }
 
 
- Widget _buildHeroImageOld(BuildContext context) {
-  final images = widget.deal.imageUrls.isNotEmpty 
-    ? widget.deal.imageUrls 
-    : (widget.deal.imageUrl != null ? [widget.deal.imageUrl!] : []);
-  
-  if (images.isEmpty) {
-    return _buildCategoryPlaceholder();
-  }
-  
-  final screenWidth = MediaQuery.of(context).size.width;
-  final imageHeight = screenWidth * 0.8; // ✅ 80% of screen width (not 2:3 ratio)
-  
-  return Stack(
-    children: [
-      SizedBox(
-        height: imageHeight,
-        width: screenWidth,
-        child: PageView.builder(
-          physics: const BouncingScrollPhysics(),
-          itemCount: images.length,
-          onPageChanged: (index) {
-            print('📸 Swiped to image ${index + 1}/${images.length}');
-            setState(() => _currentImageIndex = index);
-          },
-          itemBuilder: (context, index) {
-            return CachedNetworkImage(
-              imageUrl: images[index],
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                color: Colors.grey.shade200,
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-              errorWidget: (context, url, error) => _buildCategoryPlaceholder(),
-            );
-          },
-        ),
-      ),
-      
-      // Gradient overlay
-      Positioned.fill(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.black.withOpacity(0.3),
-              ],
-              stops: [0.6, 1.0],
-            ),
-          ),
-        ),
-      ),
-      
-      // Discount badge
-      Positioned(
-        top: 12,
-        left: 12,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.red.shade600,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Text(
-            '${widget.deal.discountPercentage}% OFF',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ),
-      
-      // Image counter
-      if (images.length > 1)
-        Positioned(
-          top: 12,
-          right: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${_currentImageIndex + 1}/${images.length}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      
-      // Dot indicators
-      if (images.length > 1)
-        Positioned(
-          bottom: 16,
-          left: 0,
-          right: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              images.length,
-              (index) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _currentImageIndex == index
-                    ? Colors.white
-                    : Colors.white54,
-                  boxShadow: _currentImageIndex == index
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 4,
-                        ),
-                      ]
-                    : null,
-                ),
-              ),
-            ),
-          ),
-        ),
-    ],
-  );
-}
-
-  Widget _buildCategoryPlaceholder() {
+ Widget _buildCategoryPlaceholder() {
     return Container(
       color: Colors.grey.shade200,
       child: Column(
@@ -952,15 +864,195 @@ Widget _buildHeroImage(BuildContext context) {
   }
   
 
-  Widget _buildTextContent(BuildContext context) {
+
+Widget _buildAddressLine(BuildContext context) {
+  return Row(
+    children: [
+      // Location icon
+      Icon(
+        Icons.location_on_outlined, // or Icons.location_on for filled version
+        size: 16,
+        color: Colors.blue.shade600,
+      ),
+      const SizedBox(width: 4), // Space between icon and text
+      
+      // Business address with subtle styling
+      Expanded( // Wrap in Expanded to prevent overflow
+        child: InkWell(
+          onTap: () => _showAddressOptions(),
+          child: Text(
+            widget.deal.businessAddress,
+            style: TextStyle(
+              color: Colors.blue.shade600,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+      
+      const SizedBox(height: 12),
+    ],
+  );
+}
+Widget _buildTextContent(BuildContext context) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // Category badge with text (not just emoji)
+      /*Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          /*children: [
+            Text(widget.deal.categoryEmoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 4),
+            Text(
+              widget.deal.category.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.withOpacity(0.1),
+              ),
+            ),
+          ],*/
+        ),
+      ),*/
+      
+      const SizedBox(height: 12),
+      
+      // Deal title - make it the hero
+      /*Text(
+        widget.deal.title,
+        style: const TextStyle(
+          fontSize: 24, // Bigger!
+          fontWeight: FontWeight.bold,
+          height: 1.2,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      
+      const SizedBox(height: 12),*/
+      
+      // Business info + distance is on image overlay
+      /*Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            // Business name
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.deal.businessName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // Add rating if available
+                  if (_businessRating != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        ...List.generate(5, (index) => Icon(
+                          index < _businessRating!.round() 
+                            ? Icons.star 
+                            : Icons.star_border,
+                          size: 14,
+                          color: Colors.amber,
+                        )),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${_businessRating!.toStringAsFixed(1)} ($_totalRatings)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            
+            // Distance - make it prominent
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.navigation, size: 14, color: Colors.blue.shade700),
+                  const SizedBox(width: 4),
+                  Text(
+                    distanceDisplayText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      */
+      
+      
+      //const SizedBox(height: 12),
+      
+      // Deal title - make it the hero
+      Text(
+        widget.deal.title,
+        style: const TextStyle(
+          fontSize: 24, // Bigger!
+          fontWeight: FontWeight.bold,
+          height: 1.2,
+          color: Colors.grey
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      const SizedBox(height: 12),
+      // Description
+      const SizedBox(height: 12),
+      _buildExpandableDescription()
+    ],
+  );
+}
+
+
+  Widget _buildTextContentOld(BuildContext context) {
   return Padding(
-    padding: const EdgeInsets.all(16), // More breathing room
+    padding: const EdgeInsets.all(1), // More breathing room
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Title - 2 lines max
         
-        const SizedBox(height: 6),
+        const SizedBox(height: 5),
         
         // Business name with rating
         Row(
@@ -977,6 +1069,8 @@ Widget _buildHeroImage(BuildContext context) {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+           
+       
             // ✅ ADD RATING HERE
             if (!_loadingRating && _businessRating != null && _totalRatings != null) ...[
                 const SizedBox(width: 8),
@@ -1016,8 +1110,7 @@ Widget _buildHeroImage(BuildContext context) {
         ),
         
         const SizedBox(height: 6),
-        
-        // Business address with subtle styling
+          // Business address with subtle styling
         InkWell(
           onTap: () => _showAddressOptions(),
           child: Text(
@@ -1072,107 +1165,7 @@ Widget _buildHeroImage(BuildContext context) {
     ),
   );
 }
-  Widget _buildTextContentOld(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16), // More breathing room
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title - 2 lines max
-           
-          
-          
-          const SizedBox(height: 6),
-          // Business name with subtle styling
-          Text(
-            widget.deal.businessName,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          
-          const SizedBox(height: 6),
-           InkWell(
-          onTap: () => _showAddressOptions(),
-          child: 
-          // Business address with subtle styling
-          Text(
-            widget.deal.businessAddress,
-            style: TextStyle(
-              color: Colors.blue.shade600,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-           ),
-          /*const SizedBox(height: 6),
-          buildDistanceWidget(
-            widget.deal,
-            onRefresh: () => refreshDistance(widget.deal),
-          ),*/
-          // Price row - PROMINENT
-          Row(
-            children: [
-              // Original price - crossed out
-              Text(
-                '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade500,
-                  decoration: TextDecoration.lineThrough,
-                  decorationThickness: 2,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // New price - BIG
-              Text(
-                '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 24, // Much bigger
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade700,
-                ),
-              ),
-              
-             
-              const Spacer(),
-            
-             
-            ],
-          ),
-          
-          const SizedBox(height: 6),
-          /*Row(
-            
-             children: [
-          // Business name with subtle styling
-          Expanded(
-          child : Text(
-            widget.deal.description,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          )
-             ]
-          )
-        */
-          _buildExpandableDescription()
-        ],
-      ),
-    );
-  }
-
+  
   // Helper: Category-based placeholder when no image
   Widget _buildCategoryPlaceholderOld() {
     final categoryImages = {
@@ -1344,7 +1337,7 @@ Widget _buildHeroImage(BuildContext context) {
 }
 
 // Open directions in maps
-void _openDirections() {
+Future<void> _openDirections() async {
   // You can implement with url_launcher package
   final encodedAddress = Uri.encodeComponent(widget.deal.businessAddress);
   final mapsUrl = 'https://www.google.com/maps/search/?api=1&query=$encodedAddress';
@@ -1358,15 +1351,15 @@ void _openDirections() {
   );
   
   // With url_launcher, you would do:
-  // if (await canLaunchUrl(Uri.parse(mapsUrl))) {
-  //   await launchUrl(Uri.parse(mapsUrl));
-  // }
+   if (await canLaunchUrl(Uri.parse(mapsUrl))) {
+     await launchUrl(Uri.parse(mapsUrl));
+   }
 }
 
 // Copy address to clipboard
 void _copyAddress() {
   // You can implement with flutter/services package
-  // Clipboard.setData(ClipboardData(text: widget.deal.businessAddress));
+  Clipboard.setData(ClipboardData(text: widget.deal.businessAddress));
   
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
@@ -1547,93 +1540,174 @@ Future<void> _loadBusinessRating() async {
   }
 }
 
-Widget _buildPriceSection(BuildContext context) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.grey.shade50,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      children: [
-        // Price row
-        Row(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.deal.originalPrice != widget.deal.dealPrice) ...[
+Widget _buildPriceSectionWithTax(BuildContext context) {
+  final dealPrice = widget.deal.dealPrice;
+  final originalPrice = widget.deal.originalPrice;
+  final savings = originalPrice - dealPrice;
+  final taxRate = _getTaxRate();
+  final taxAmount = dealPrice * taxRate;
+  final totalPrice = dealPrice + taxAmount;
+
+  return Column(
+    children: [
+      // Main price display with original price strikethrough
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (savings > 0)
+                Text(
+                  '\$${originalPrice.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    decoration: TextDecoration.lineThrough,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
                   Text(
-                    '\$${widget.deal.originalPrice.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      decoration: TextDecoration.lineThrough,
-                      color: Colors.grey.shade500,
-                      fontSize: 14,
+                    '\$${dealPrice.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 26, // Make it huge!
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(width: 8),
                 ],
-                Text(
-                  '\$${widget.deal.dealPrice.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
+              ),
+            ],
+          ),
+          
+          // Smaller Savings badge to match main price size
+          if (savings > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), // Reduced padding
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.red.shade400, Colors.red.shade600],
+                ),
+                borderRadius: BorderRadius.circular(16), // Slightly smaller radius
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.3), // Fixed color from green to red
+                    blurRadius: 6, // Reduced blur
+                    offset: const Offset(0, 2),
                   ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min, // Important: shrink to content
+                children: [
+                  const Text(
+                    'SAVE',
+                    style: TextStyle(
+                      fontSize: 8, // Reduced from 10
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    '\$${savings.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 16, // Reduced from 24 to match proportionally
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    '${widget.deal.discountPercentage}%',
+                    style: const TextStyle(
+                      fontSize: 9, // Reduced from 11
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      
+      const SizedBox(height: 5),
+      
+      // Simplified total with tax (expandable)
+      ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
+        backgroundColor: Colors.grey.shade50,
+        collapsedBackgroundColor: Colors.grey.shade50,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Total (incl. tax)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              '\$${totalPrice.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              children: [
+                _buildPriceRow('Deal Price', '\$${dealPrice.toStringAsFixed(2)}'),
+                const SizedBox(height: 8),
+                _buildPriceRow('Tax (HST 13%)', '\$${taxAmount.toStringAsFixed(2)}', isSubtle: true),
+                const Divider(height: 20),
+                _buildPriceRow(
+                  'Final Total', 
+                  '\$${totalPrice.toStringAsFixed(2)}',
+                  isBold: true,
                 ),
               ],
             ),
-            const Spacer(),
-            if (widget.deal.discountPercentage > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${widget.deal.discountPercentage}% OFF',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        
-        const SizedBox(height: 12),
-        
-        // Deal info row
-        Row(
-          children: [
-            Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
-            const SizedBox(width: 4),
-            Text(
-              _getFormattedTimeRemaining(),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Icon(Icons.inventory, size: 16, color: Colors.grey.shade600),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.deal.remainingQuantity} left',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
+          ),
+        ],
+      ),
+    ],
   );
 }
-
+Widget _buildPriceRow(String label, String value, {bool isSubtle = false, bool isBold = false}) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          color: isSubtle ? Colors.grey.shade600 : Colors.black87,
+          fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+          color: isSubtle ? Colors.grey.shade600 : Colors.black87,
+        ),
+      ),
+    ],
+  );
+}
 
 DateTime? _getExpirationDateTime() {
   
@@ -1666,6 +1740,300 @@ String _getTimeRemainingText() {
   } else {
     return 'Expired';
   }
+}
+
+@override
+Widget build(BuildContext context) {
+  return Container(
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Handle bar
+        Container(
+          width: 40,
+          height: 4,
+          margin: const EdgeInsets.only(top: 12, bottom: 8),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade300,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        
+        // SCROLLABLE CONTENT
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Image carousel
+                if (widget.deal.imageUrl != null && widget.deal.imageUrl!.isNotEmpty)
+                  _buildHeroImage(context),
+                
+                // Content with padding
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildAddressLine(context),
+                      const Divider(),
+                      const SizedBox(height: 3),
+                      _buildPriceSectionWithTax(context),
+                      const SizedBox(height: 16),
+                      _buildTextContent(context),
+                      const SizedBox(height: 16),
+                      _buildDealInfo(context),
+                      
+                      // Add bottom padding to prevent content hiding under button
+                      const SizedBox(height: 100), // ← Important!
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        // STICKY BOTTOM CTA
+        _buildStickyBottomCTA(context),
+      ],
+    ),
+  );
+}
+
+Widget _buildStickyBottomCTA(BuildContext context) {
+  final dealPrice = widget.deal.dealPrice;
+  final taxAmount = dealPrice * _getTaxRate();
+  final totalPrice = dealPrice + taxAmount;
+  final isDisabled = widget.deal.isSoldOut || widget.deal.isExpired;
+
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.1),
+          blurRadius: 10,
+          offset: const Offset(0, -3),
+        ),
+      ],
+    ),
+    child: SafeArea(
+      top: false, // Only apply safe area to bottom
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_isLoadingCards)
+              const Center(child: CircularProgressIndicator())
+            else if (isDisabled)
+              _buildDisabledButton()
+            else if (_hasSavedCards && _defaultCard != null)
+              _build1TapButton(totalPrice)
+            else
+              _buildRegularButton(totalPrice),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _build1TapButton(double totalPrice) {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      
+      
+      
+      // 1-Tap Button
+      SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isProcessing1Tap ? null : () => _handle1TapPurchase(totalPrice),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green.shade600,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: _isProcessing1Tap ? 0 : 4,
+            shadowColor: Colors.green.withOpacity(0.4),
+          ),
+          child: _isProcessing1Tap
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Processing...',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.flash_on, size: 22),
+                    const SizedBox(width: 8),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '1-Tap Buy',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '\$${totalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+        ),
+      ),
+      
+      const SizedBox(height: 10),
+      // Payment method preview (compact)
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, size: 12, color: Colors.green.shade700),
+                const SizedBox(width: 4),
+                Text(
+                  _defaultCard!.cardBrandIcon,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                    onPressed: widget.onPurchase,
+                    style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                    child: Text(
+                  '•••• ${_defaultCard!.cardLast4}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                  ),
+                
+              ],
+            ),
+          ),
+        ],
+      ),
+      
+
+      /*const SizedBox(height: 8),
+      
+      // Alternative payment link (compact)
+      TextButton(
+        onPressed: widget.onPurchase,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+        ),
+        child: Text(
+          'Use different payment',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),*/
+    ],
+  );
+}
+
+Widget _buildRegularButton(double totalPrice) {
+  return SizedBox(
+    width: double.infinity,
+    height: 56,
+    child: ElevatedButton(
+      onPressed: widget.onPurchase,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 4,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.shopping_cart, size: 20),
+          const SizedBox(width: 12),
+          Text(
+            'Buy Now • \$${totalPrice.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildDisabledButton() {
+  return Container(
+    width: double.infinity,
+    height: 56,
+    decoration: BoxDecoration(
+      color: Colors.grey.shade300,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Center(
+      child: Text(
+        widget.deal.isSoldOut ? 'Sold Out' : 'Expired',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade600,
+        ),
+      ),
+    ),
+  );
 }
 }
 

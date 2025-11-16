@@ -11,7 +11,7 @@ class Deal {
   final double dealPrice;
   final int totalQuantity;
   final int remainingQuantity;
-  final String businessId;        // ✅ ADD THIS LINE
+  final String businessId;
   final String businessName;
   final String businessAddress;
   final int expirationTime;
@@ -20,6 +20,7 @@ class Deal {
   final List<String> imageUrls; 
   final double? businessAverageRating;
   final int? businessTotalRatings;
+  final bool isTaxApplicable; 
 
   Deal({
     required this.id,
@@ -41,6 +42,7 @@ class Deal {
     this.isActive = true,
     this.businessAverageRating,
     this.businessTotalRatings,
+    this.isTaxApplicable = true,
   });
 
   // Calculate discount percentage
@@ -126,6 +128,7 @@ class Deal {
         ? (data['businessAverageRating'] as num).toDouble()
         : null,
     businessTotalRatings: data['businessTotalRatings'],
+    isTaxApplicable: data['isTaxApplicable'] ?? true,
     );
   }
 
@@ -146,6 +149,7 @@ class Deal {
       'imageUrl': imageUrl,
       'imageUrls' : imageUrls,
       'isActive': isActive,
+      'isTaxApplicable': isTaxApplicable, 
     };
   }
 
@@ -196,6 +200,8 @@ static int _parseExpirationTime(dynamic value) {
     int? expirationTime,
     String? imageUrl,
     bool? isActive,
+    bool? isTaxApplicable,
+    
   }) {
     return Deal(
       id: id ?? this.id,
@@ -215,6 +221,7 @@ static int _parseExpirationTime(dynamic value) {
       imageUrl: imageUrl ?? this.imageUrl,
       imageUrls: imageUrls ?? this.imageUrls,
       isActive: isActive ?? this.isActive,
+      isTaxApplicable: isTaxApplicable ?? this.isTaxApplicable,
     );
   }
 

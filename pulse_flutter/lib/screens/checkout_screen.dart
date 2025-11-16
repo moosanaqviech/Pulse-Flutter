@@ -403,6 +403,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final dealPrice = widget.deal.dealPrice;
     final originalPrice = widget.deal.originalPrice;
     final savings = originalPrice - dealPrice;
+    
     final taxRate = _getTaxRate();
     final taxAmount = dealPrice * taxRate;
     final totalPrice = dealPrice + taxAmount;
@@ -418,7 +419,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Order Summary TEST',
+              'Order Summary',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -832,4 +833,39 @@ double _getTaxRate() {
     // You can implement province-specific tax rates here
     // For now, using Ontario HST as default
     return 0.13; // 13% HST for Ontario
+  }
+
+   double calculateTax(double amount, String province) {
+    double HST_RATE = 0.13; // 13% HST for Ontario
+      double GST_RATE = 0.05; // 5% GST (if PST separate)
+      double PST_RATE = 0.08; // 8% PST for Ontario (if separate)
+    switch (province.toUpperCase()) {
+      case 'ON': // Ontario
+      case 'NB': // New Brunswick  
+      case 'NL': // Newfoundland
+      case 'NS': // Nova Scotia
+      case 'PEI': // Prince Edward Island
+        return amount * HST_RATE; // 13% HST
+      
+      case 'BC': // British Columbia
+        return amount * (GST_RATE + 0.07); // 5% GST + 7% PST = 12%
+      
+      case 'SK': // Saskatchewan
+        return amount * (GST_RATE + 0.06); // 5% GST + 6% PST = 11%
+        
+      case 'QC': // Quebec
+        return amount * (GST_RATE + 0.09975); // 5% GST + 9.975% QST = 14.975%
+        
+      case 'MB': // Manitoba
+        return amount * (GST_RATE + 0.07); // 5% GST + 7% PST = 12%
+        
+      case 'AB': // Alberta
+      case 'NT': // Northwest Territories
+      case 'NU': // Nunavut
+      case 'YT': // Yukon
+        return amount * GST_RATE; // 5% GST only
+        
+      default:
+        return amount * HST_RATE; // Default to HST
+    }
   }

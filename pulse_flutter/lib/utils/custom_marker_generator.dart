@@ -74,7 +74,7 @@ class CustomMarkerGenerator {
 // ADD this helper method to CustomMarkerGenerator class:
 
 static void _drawDealCountBadge(Canvas canvas, Size size, int count) {
-  final badgeRadius = 14.0;
+  const badgeRadius = 15.0;
   final badgeCenter = Offset(size.width - badgeRadius - 4, badgeRadius + 4);
   
   // Badge background
@@ -98,7 +98,7 @@ static void _drawDealCountBadge(Canvas canvas, Size size, int count) {
       text: count.toString(),
       style: const TextStyle(
         color: Colors.white,
-        fontSize: 12,
+        fontSize: 15,
         fontWeight: FontWeight.bold,
       ),
     ),
@@ -273,7 +273,7 @@ static void _drawDealCountBadge(Canvas canvas, Size size, int count) {
 
   static void _drawSquareNeonRing(Canvas canvas, Rect rect, double phase, List<Color> colors, int ringIndex) {
     final perimeter = 2 * (rect.width + rect.height);
-    final segmentCount = 60;
+    const segmentCount = 60;
     
     for (int i = 0; i < segmentCount; i++) {
       final t = (i / segmentCount + phase) % 1.0;
@@ -573,7 +573,7 @@ static void _drawDealCountBadge(Canvas canvas, Size size, int count) {
 
   static void _drawActivityIcon(Canvas canvas, Offset center, double size, Paint paint) {
     final starPath = Path();
-    final points = 5;
+    const points = 5;
     final outerRadius = size * 0.35; // Much larger
     final innerRadius = size * 0.18;
     

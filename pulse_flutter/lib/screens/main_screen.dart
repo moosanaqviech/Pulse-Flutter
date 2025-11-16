@@ -44,8 +44,13 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeScreen();
+    //_initializeScreen();
     //_startNeonAnimation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final dealService = Provider.of<DealService>(context, listen: false);
+      dealService.startListening(); // ✅ Start real-time updates
+      //_initializeLocation();
+    });
   }
 
   @override
@@ -214,7 +219,7 @@ void _onMarkerTap(dynamic dealsOrDeal) {
     return Scaffold(
       key: _scaffoldKey,
       appBar: _buildAppBar(),
-      body: _buildBody(),
+      body: _buildBodyWithDidChangeDependencies(),
       drawer: _buildDrawer(),
     );
   }
@@ -296,6 +301,92 @@ void _onMarkerTap(dynamic dealsOrDeal) {
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  Widget _buildBodyWithDidChangeDependencies() {
+    // This completely avoids the Consumer rebuild issue
+    
+    final dealService = Provider.of<DealService>(context);
+    
+    // Show loading state
+    if (dealService.isLoading && dealService.deals.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading deals...'),
+          ],
+        ),
+      );
+    }
+
+    // Show error state  
+    if (dealService.errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error, size: 64, color: Colors.red.shade400),
+            SizedBox(height: 16),
+            Text(dealService.errorMessage!),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => dealService.startListening(),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Return the map
+    return _buildMap();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // ✅ This method is called when DealService changes
+    final dealService = Provider.of<DealService>(context);
+    
+    debugPrint('🔄 didChangeDependencies: ${dealService.deals.length} deals');
+    
+    // Update markers when deals change AND map is ready
+    if (_mapController != null && dealService.deals.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateMarkers();
+      });
+    }
+  }
+ 
+
+  // ✅ UPDATED: Your existing map build logic
+  Widget _buildMap() {
+    return GoogleMap(
+      onMapCreated: (GoogleMapController controller) {
+        debugPrint('🗺️ GoogleMap: Map created');
+        _mapController = controller;
+        
+        // Move camera to current location
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(_currentLocation, 15.0),
+        );
+        
+        // Initial marker update
+        _updateMarkers();
+      },
+      initialCameraPosition: CameraPosition(
+        target: _currentLocation,
+        zoom: 15.0,
+      ),
+      markers: Set<Marker>.from(_markers),
+      myLocationEnabled: true,
+      myLocationButtonEnabled: true,
+      // Your other existing map properties...
     );
   }
 

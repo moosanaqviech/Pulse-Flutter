@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
@@ -9,6 +11,7 @@ class DealService extends ChangeNotifier {
   List<Deal> _deals = [];
   bool _isLoading = false;
   String? _errorMessage;
+  StreamSubscription<QuerySnapshot>? _dealsSubscription;
 
   List<Deal> get deals => _deals;
   bool get isLoading => _isLoading;
@@ -197,6 +200,71 @@ class DealService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error updating deal quantity: $e');
+    }
+  }
+
+
+  // ✅ NEW: Start real-time listening for deals
+  void startListening() {
+    _setLoading(true);
+    _clearError();
+
+    debugPrint('🎧 Starting real-time deal listening...');
+
+    _dealsSubscription = _firestore
+        .collection('deals')
+        .where('isActive', isEqualTo: true)
+        .where('expirationTime', isGreaterThan: Timestamp.now())
+        .snapshots()
+        .listen(
+          (snapshot) {
+            debugPrint('📡 Received ${snapshot.docs.length} deals from Firestore');
+            
+            _deals = snapshot.docs
+                .map((doc) => Deal.fromFirestore(doc))
+                .toList();
+                
+            _setLoading(false);
+            debugPrint('✅ Updated deals list: ${_deals.length} active deals');
+            
+            // Notify listeners (updates UI immediately)
+            notifyListeners();
+          },
+          onError: (error) {
+            debugPrint('❌ Error listening to deals: $error');
+            _setError('Failed to load deals');
+            _setLoading(false);
+          },
+        );
+  }
+
+  // ✅ NEW: Stop listening (cleanup)
+  void stopListening() {
+    debugPrint('🔇 Stopping real-time deal listening...');
+    _dealsSubscription?.cancel();
+    _dealsSubscription = null;
+  }
+
+  // ✅ NEW: Manual refresh (for pull-to-refresh)
+  Future<void> refreshDeals() async {
+    debugPrint('🔄 Manual refresh triggered');
+    // The stream will automatically update, but we can force a reload if needed
+    try {
+      final snapshot = await _firestore
+          .collection('deals')
+          .where('isActive', isEqualTo: true)
+          .where('expirationTime', isGreaterThan: Timestamp.now())
+          .get();
+          
+      _deals = snapshot.docs
+          .map((doc) => Deal.fromFirestore(doc))
+          .toList();
+          
+      notifyListeners();
+      debugPrint('✅ Manual refresh complete: ${_deals.length} deals');
+    } catch (e) {
+      debugPrint('❌ Manual refresh failed: $e');
+      _setError('Failed to refresh deals');
     }
   }
 
