@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "930910441824-15fjld1vc151d97hdm1qs8oj3bjj6mgp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pulse.business",
+            "certificate_hash": "c98ce35519362edef78ab29733f48e3822c91b6c"
+          }
+        },
+        {
+          "client_id": "930910441824-jn6j7k3trh1hlrmjgr24fos4stvu35nq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pulse.business",
+            "certificate_hash": "a425b33266c64dcce4582002b2a6682ee1ee60be"
+          }
+        },
+        {
           "client_id": "930910441824-br3m1eetvjshravis6i9u4sdf7m8sfp1.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -42,6 +58,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "930910441824-kic77al0bautokcvdrepsnlfv4ufb1bi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pulse.consumer",
+            "certificate_hash": "acb329ff48582c57aea740a6ce2faaf2a7673f09"
+          }
+        },
         {
           "client_id": "930910441824-mfclugkba9ag1fpaiqnoivo9249u4391.apps.googleusercontent.com",
           "client_type": 1,

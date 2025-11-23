@@ -35,6 +35,8 @@ class _MainScreenState extends State<MainScreen> {
   // Default location (Toronto)
   static const LatLng _defaultLocation = LatLng(43.6532, -79.3832);
   LatLng _currentLocation = _defaultLocation;
+  
+  int _currentBottomIndex = 0; // 0 = Map, 1 = My Vouchers, 2 = Settings
 
   // Neon animation
   //Timer? _neonAnimationTimer;
@@ -103,11 +105,9 @@ class _MainScreenState extends State<MainScreen> {
   }*/
 
   Future<void> _initializeScreen() async {
-    final dealService = Provider.of<DealService>(context, listen: false);
+    
     final locationService = Provider.of<LocationService>(context, listen: false);
     
-    // Load deals
-    await dealService.loadDeals();
     
     // Get current location
     try {
@@ -124,7 +124,6 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint('Error getting location: $e');
     }
     
-    _updateMarkers();
   }
 
  Future<void> _updateMarkers() async {
@@ -219,8 +218,9 @@ void _onMarkerTap(dynamic dealsOrDeal) {
     return Scaffold(
       key: _scaffoldKey,
       appBar: _buildAppBar(),
-      body: _buildBodyWithDidChangeDependencies(),
-      drawer: _buildDrawer(),
+      body: _buildBodyBasedOnBottomNavigation(),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+      //drawer: _buildDrawer(),
     );
   }
 
@@ -257,49 +257,54 @@ void _onMarkerTap(dynamic dealsOrDeal) {
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: false,
-      leading: IconButton(
-        icon: const Icon(Icons.menu, color: Colors.white),
-        onPressed: () {
-          _scaffoldKey.currentState?.openDrawer();
-        },
-        tooltip: 'Menu',
-      ),
+      // ⭐ REMOVE the drawer button - DELETE these 5 lines:
+      // leading: IconButton(
+      //   icon: const Icon(Icons.menu, color: Colors.white),
+      //   onPressed: () {
+      //     _scaffoldKey.currentState?.openDrawer();
+      //   },
+      //   tooltip: 'Menu',
+      // ),
+      automaticallyImplyLeading: false, // ⭐ ADD THIS LINE instead
       actions: [
-        // Deal counter
-        Container(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '${_markers.length}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.white,
+        // Only show these actions when on the map screen
+        if (_currentBottomIndex == 0) ...[  // ⭐ ADD THIS CONDITION
+          // Deal counter
+          Container(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${_markers.length}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              const Text(
-                'DEALS',
-                style: TextStyle(
-                  fontSize: 8,
-                  color: Colors.white70,
+                const Text(
+                  'DEALS',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.white70,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.search, color: Colors.white),
-          onPressed: _showSearch,
-          tooltip: 'Search',
-        ),
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-          onPressed: _showNotifications,
-          tooltip: 'Notifications',
-        ),
-        const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _showSearch,
+            tooltip: 'Search',
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            onPressed: _showNotifications,
+            tooltip: 'Notifications',
+          ),
+          const SizedBox(width: 8),
+        ], // ⭐ CLOSE the conditional
       ],
     );
   }
@@ -366,15 +371,13 @@ void _onMarkerTap(dynamic dealsOrDeal) {
 
   // ✅ UPDATED: Your existing map build logic
   Widget _buildMap() {
+    
     return GoogleMap(
       onMapCreated: (GoogleMapController controller) {
         debugPrint('🗺️ GoogleMap: Map created');
         _mapController = controller;
         
-        // Move camera to current location
-        _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(_currentLocation, 15.0),
-        );
+        _initializeScreen();
         
         // Initial marker update
         _updateMarkers();
@@ -975,5 +978,230 @@ void _showDealPreviewCarousel(List<Deal> deals) {
         SnackBar(content: Text('Error signing out: $e')),
       );
     }
+  }
+
+   // ⭐ NEW METHOD: Switch body based on bottom navigation
+  Widget _buildBodyBasedOnBottomNavigation() {
+    switch (_currentBottomIndex) {
+      case 0:
+        return _buildBodyWithDidChangeDependencies(); // Your existing map view
+      case 1:
+        return const VoucherListScreen(); // My Vouchers
+      case 2:
+        return _buildSettingsScreen(); // Settings
+      default:
+        return _buildBodyWithDidChangeDependencies();
+    }
+  }
+
+  // ⭐ NEW METHOD: Bottom Navigation Bar
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: _currentBottomIndex,
+      onTap: (index) {
+        setState(() {
+          _currentBottomIndex = index;
+        });
+      },
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Theme.of(context).primaryColor,
+      unselectedItemColor: Colors.grey.shade600,
+      selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+      backgroundColor: Colors.white,
+      elevation: 8,
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.map),
+          label: 'Map',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.local_offer),
+          label: 'My Vouchers',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.settings),
+          label: 'Settings',
+        ),
+      ],
+    );
+  }
+
+  // ⭐ NEW METHOD: Settings screen widget
+  Widget _buildSettingsScreen() {
+    return Consumer<AuthService>(
+      builder: (context, authService, _) {
+        final user = authService.currentUser;
+        
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // User Profile Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Theme.of(context).primaryColor,
+                      child: Text(
+                        (user?.displayName?.isNotEmpty == true)
+                            ? user!.displayName![0].toUpperCase()
+                            : 'G',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.displayName ?? 'Guest User',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            user?.email ?? 'Not signed in',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Settings Options
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.history),
+                    title: const Text('Purchase History'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PurchaseHistoryScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.favorite),
+                    title: const Text('Favorites'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const FavoritesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.notifications),
+                    title: const Text('Notifications'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Notification settings coming soon!'),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.help),
+                    title: const Text('Help & Support'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Help feature coming soon!'),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 32),
+            
+            // Logout Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showLogoutDialog(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.logout),
+                label: const Text(
+                  'Logout',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ⭐ NEW METHOD: Logout dialog
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final authService = Provider.of<AuthService>(context, listen: false);
+              await authService.signOut();
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
   }
 }

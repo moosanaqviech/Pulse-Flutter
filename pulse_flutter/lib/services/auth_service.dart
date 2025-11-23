@@ -25,6 +25,12 @@ class AuthService extends ChangeNotifier {
     });
   }
 
+  Future<void> refreshAuthToken() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    await user.getIdToken(true); // Force refresh
+  }
+}
   // Email & Password Sign Up
   Future<bool> signUpWithEmail({
     required String email,

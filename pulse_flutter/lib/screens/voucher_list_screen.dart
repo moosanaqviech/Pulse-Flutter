@@ -26,7 +26,9 @@ class _VoucherListScreenState extends State<VoucherListScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+     WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadVouchers();
+  });
   }
 
   @override
@@ -589,23 +591,17 @@ Future<void> _submitRating(Purchase voucher, int stars, String comment) async {
 
   if (success) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                ratingService.hasUserRatedBusiness(voucher.businessId)
-                    ? 'Rating updated successfully!'
-                    : 'Thank you for your rating!',
-              ),
-            ),
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Rating submitted successfully!'),
           ],
         ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
+        duration: Duration(seconds: 3),
       ),
     );
   } else {
@@ -619,7 +615,6 @@ Future<void> _submitRating(Purchase voucher, int stars, String comment) async {
     );
   }
 }
-
   Color _getStatusColor(Purchase voucher) {
     if (voucher.isRedeemed) {
       return Colors.green;

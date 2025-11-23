@@ -113,8 +113,8 @@ export const createAccountLink = onCall(
       }
 
       // Use the URLs provided by the client (deep links for mobile, web URLs for fallback)
-      const finalRefreshUrl = refreshUrl || "https://incandescent-pixie-dd06ee.netlify.app/stripe-refresh";
-      const finalReturnUrl = returnUrl || "https://incandescent-pixie-dd06ee.netlify.app/stripe-complete";
+      const finalRefreshUrl = refreshUrl || "https://checkpulse.shop//stripe-refresh";
+      const finalReturnUrl = returnUrl || "https://checkpulse.shop/stripe-complete";
       
       console.log("🔵 Using URLs:", { finalRefreshUrl, finalReturnUrl });
       console.log("🔵 About to create Stripe account link...");

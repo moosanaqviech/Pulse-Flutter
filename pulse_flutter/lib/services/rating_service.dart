@@ -76,8 +76,8 @@ Future<bool> submitRating({
     
     await _updateBusinessRating(businessId);
     await loadUserRatings(userId);
-    
-    _setLoading(false);
+
+  _setLoading(false);
     return true;
   } catch (e) {
     debugPrint('❌ Failed to submit rating: $e');
