@@ -29,7 +29,7 @@ class _MainScreenState extends State<MainScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
   GoogleMapController? _mapController;
-  final Set<Marker> _markers = {};
+  late Set<Marker> _markers = {};
   Deal? _selectedDeal;
   
   // Default location (Toronto)
@@ -126,14 +126,14 @@ class _MainScreenState extends State<MainScreen> {
     
   }
 
- Future<void> _updateMarkers() async {
+// Replace your existing _updateMarkers() method in main_screen.dart with this:
+
+Future<void> _updateMarkers() async {
   final dealService = Provider.of<DealService>(context, listen: false);
   
-  setState(() {
-    _markers.clear();
-  });
+  print('🔄 Starting marker update for ${dealService.deals.length} deals...');
   
-  // Group deals by location (businesses with same lat/lng)
+  // Step 1: Group deals by location
   final Map<String, List<Deal>> dealsByLocation = {};
   
   for (final deal in dealService.deals) {
@@ -141,41 +141,105 @@ class _MainScreenState extends State<MainScreen> {
     dealsByLocation.putIfAbsent(locationKey, () => []).add(deal);
   }
   
-  // Create markers for each location
-  for (final entry in dealsByLocation.entries) {
-    final deals = entry.value;
+  print('📍 Grouped into ${dealsByLocation.length} unique locations');
+  
+  // Step 2: Convert to list for chunking
+  final locations = dealsByLocation.entries.toList();
+  final Set<Marker> allMarkers = {};
+  
+  // Step 3: Process in chunks for optimal performance
+  const chunkSize = 20; // Process 20 markers at a time
+  final totalChunks = (locations.length / chunkSize).ceil();
+  
+  for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    final startIdx = chunkIndex * chunkSize;
+    final endIdx = (startIdx + chunkSize < locations.length) 
+        ? startIdx + chunkSize 
+        : locations.length;
+    
+    final chunk = locations.sublist(startIdx, endIdx);
+    
+    print('📦 Processing chunk ${chunkIndex + 1}/$totalChunks (markers $startIdx-$endIdx)');
+    
+    // Step 4: Generate markers in this chunk IN PARALLEL
+    final chunkFutures = chunk.map((entry) async {
+      return await _createMarkerForLocation(entry.key, entry.value);
+    }).toList();
+    
+    // Step 5: Wait for all markers in this chunk to complete
+    try {
+      final chunkMarkers = await Future.wait(
+        chunkFutures,
+        eagerError: false, // Continue even if some markers fail
+      );
+      
+      // Add successfully created markers
+      allMarkers.addAll(chunkMarkers.whereType<Marker>());
+      
+      // Step 6: Update UI progressively (show markers as they're ready)
+      if (mounted) {
+        setState(() {
+          _markers = Set.from(allMarkers);
+        });
+        print('✅ Updated map with ${allMarkers.length} markers so far');
+      }
+      
+      // Small delay between chunks to prevent CPU overload
+      if (endIdx < locations.length) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
+      
+    } catch (e) {
+      print('❌ Error processing chunk ${chunkIndex + 1}: $e');
+      // Continue with next chunk even if this one fails
+    }
+  }
+  
+  print('🎉 Marker update complete: ${allMarkers.length} markers on map');
+}
+
+/// Create a single marker for a location (can have multiple deals)
+Future<Marker?> _createMarkerForLocation(
+  String locationKey, 
+  List<Deal> deals,
+) async {
+  try {
     final firstDeal = deals.first;
     final dealCount = deals.length;
     
-    // Use the highest discount for marker styling
+    // Find the highest discount for marker styling
     final maxDiscount = deals.map((d) => d.discountPercentage).reduce((a, b) => a > b ? a : b);
-    final shouldAnimate = maxDiscount >= 50;
     
-    // Create marker with deal count badge
+    // Check if any deal is active
+    final hasActiveDeals = deals.any((d) => d.isActive && !d.isExpired && !d.isSoldOut);
+    
+    // Create custom marker bitmap
     final customMarker = await CustomMarkerGenerator.createDealMarkerWithCount(
       category: firstDeal.category,
       price: firstDeal.dealPrice,
       originalPrice: firstDeal.originalPrice,
       discountPercentage: maxDiscount,
-      isActive: deals.any((d) => d.isActive && !d.isExpired && !d.isSoldOut),
-      isPopular: shouldAnimate,
-      dealCount: dealCount, // Pass the count
+      isActive: hasActiveDeals,
+      isPopular: maxDiscount >= 50, // 50%+ discount = popular
+      dealCount: dealCount,
       neonAnimationPhase: 0.0,
     );
     
-    setState(() {
-      _markers.add(
-        Marker(
-          markerId: MarkerId(entry.key),
-          position: LatLng(firstDeal.latitude, firstDeal.longitude),
-          icon: customMarker,
-          onTap: () => _onMarkerTap(deals), // Pass list of deals
-          infoWindow: InfoWindow.noText,
-        ),
-      );
-    });
+    // Create the marker
+    return Marker(
+      markerId: MarkerId(locationKey),
+      position: LatLng(firstDeal.latitude, firstDeal.longitude),
+      icon: customMarker,
+      onTap: () => _onMarkerTap(deals),
+      infoWindow: InfoWindow.noText,
+    );
+    
+  } catch (e) {
+    print('❌ Error creating marker for location $locationKey: $e');
+    return null; // Return null for failed markers
   }
 }
+
 
 void _onMarkerTap(dynamic dealsOrDeal) {
   // Handle both single deal and multiple deals
