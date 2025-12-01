@@ -47,8 +47,10 @@ class _DealBottomSheetState extends State<DealBottomSheet> with DistanceCalculat
   void initState() {
     super.initState();
     initDistanceCalculation(widget.deal, autoRefresh: true);
+     WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadSavedPaymentMethods();
-    _loadBusinessRating();  // ✅ ADD THIS
+  });
+    _loadBusinessRating();
     // Track view when user opens deal details
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AnalyticsService.trackDealView(widget.deal.id);

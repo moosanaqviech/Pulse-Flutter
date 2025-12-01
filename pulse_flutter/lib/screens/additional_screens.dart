@@ -16,15 +16,25 @@ class SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).primaryColor,
-      body: const Center(
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.pause_outlined,
-              size: 120,
-              color: Colors.white,
-            ),
+           Container(
+                  width: 120,
+                  height: 120,
+                  decoration: const BoxDecoration(
+                    color: Colors.blueAccent,
+                    shape: BoxShape.rectangle,
+                     image: DecorationImage(
+                        image: AssetImage('assets/images/ic_launcher-web.png'),  // ← Your logo
+                        fit: BoxFit.cover,
+                      ),
+                  ),
+                  
+                ),
+                
+                
             SizedBox(height: 24),
             Text(
               'Pulse',

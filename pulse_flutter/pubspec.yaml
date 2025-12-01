@@ -3,7 +3,7 @@ description: A Flutter app for discovering location-based deals and offers.
 
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -70,17 +70,19 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.13.1
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/ic_launcher-web.png"
 
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
   
-  # Uncomment and add assets when needed
-  # assets:
-  #   - assets/images/
-  #   - assets/animations/
-  #   - assets/icons/
   
   # Uncomment and add custom fonts when needed
   # fonts:
