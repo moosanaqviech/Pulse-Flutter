@@ -35,8 +35,8 @@ class SplashScreen extends StatelessWidget {
                 ),
                 
                 
-            SizedBox(height: 24),
-            Text(
+            const SizedBox(height: 24),
+            const Text(
               'Pulse',
               style: TextStyle(
                 fontSize: 32,
@@ -44,8 +44,8 @@ class SplashScreen extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-            SizedBox(height: 48),
-            CircularProgressIndicator(
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],

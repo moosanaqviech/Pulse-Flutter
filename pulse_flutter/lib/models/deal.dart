@@ -21,6 +21,9 @@ class Deal {
   final double? businessAverageRating;
   final int? businessTotalRatings;
   final bool isTaxApplicable; 
+  final String? businessLogoUrl;
+  final bool isRecurring;
+  final Map<String, dynamic>? recurringSchedule;
 
   Deal({
     required this.id,
@@ -43,6 +46,11 @@ class Deal {
     this.businessAverageRating,
     this.businessTotalRatings,
     this.isTaxApplicable = true,
+    this.businessLogoUrl,
+    this.isRecurring = false,
+    this.recurringSchedule,
+
+
   });
 
   // Calculate discount percentage
@@ -129,6 +137,11 @@ class Deal {
         : null,
     businessTotalRatings: data['businessTotalRatings'],
     isTaxApplicable: data['isTaxApplicable'] ?? true,
+    businessLogoUrl: data['businessLogoUrl'],
+    isRecurring: data['isRecurring'] ?? false,
+    recurringSchedule: data['recurringSchedule'] != null
+        ? Map<String, dynamic>.from(data['recurringSchedule'])
+        : null,
     );
   }
 
@@ -149,7 +162,11 @@ class Deal {
       'imageUrl': imageUrl,
       'imageUrls' : imageUrls,
       'isActive': isActive,
-      'isTaxApplicable': isTaxApplicable, 
+      'isTaxApplicable': isTaxApplicable,
+      'businessLogoUrl': businessLogoUrl,
+      'isRecurring': isRecurring,
+      'recurringSchedule': recurringSchedule,
+      
     };
   }
 
@@ -201,6 +218,9 @@ static int _parseExpirationTime(dynamic value) {
     String? imageUrl,
     bool? isActive,
     bool? isTaxApplicable,
+    String? businessLogoUrl,
+    bool? isRecurring,
+    Map<String, dynamic>? recurringSchedule,
     
   }) {
     return Deal(
@@ -222,6 +242,9 @@ static int _parseExpirationTime(dynamic value) {
       imageUrls: imageUrls ?? this.imageUrls,
       isActive: isActive ?? this.isActive,
       isTaxApplicable: isTaxApplicable ?? this.isTaxApplicable,
+      businessLogoUrl: businessLogoUrl ?? this.businessLogoUrl,
+      isRecurring: isRecurring ?? this.isRecurring,
+    recurringSchedule: recurringSchedule ?? this.recurringSchedule,
     );
   }
 

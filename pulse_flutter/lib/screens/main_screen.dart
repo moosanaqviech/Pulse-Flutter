@@ -10,8 +10,10 @@ import '../services/location_service.dart';
 import '../services/auth_service.dart';
 import '../services/purchase_service.dart';
 import '../models/deal.dart';
+import '../utils/logo_marker_generator.dart';
 import '../widgets/deal_bottom_sheet.dart';
 import '../utils/custom_marker_generator.dart';
+import '../widgets/deal_filter_chips.dart';
 import '../widgets/deal_preview_carousel.dart';
 import 'checkout_screen.dart';
 import 'favorite_screen.dart';
@@ -38,6 +40,7 @@ class _MainScreenState extends State<MainScreen> {
   
   int _currentBottomIndex = 0; // 0 = Map, 1 = My Vouchers, 2 = Settings
 
+  final Set<String> _selectedFilters = {};
   // Neon animation
   //Timer? _neonAnimationTimer;
   //double _neonAnimationPhase = 0.0;
@@ -55,54 +58,7 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  @override
- /* void dispose() {
-    _neonAnimationTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startNeonAnimation() {
-    _neonAnimationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      setState(() {
-        _neonAnimationPhase = (_neonAnimationPhase + 0.02) % 1.0;
-      });
-      
-      if (_animatedMarkerIds.isNotEmpty) {
-        _updateAnimatedMarkers();
-      }
-    });
-  }
-
-  Future<void> _updateAnimatedMarkers() async {
-    final dealService = Provider.of<DealService>(context, listen: false);
-    
-    for (final deal in dealService.deals) {
-      if (_animatedMarkerIds.contains(deal.id)) {
-        final customMarker = await CustomMarkerGenerator.createDealMarker(
-          category: deal.category,
-          price: deal.dealPrice,
-          originalPrice: deal.originalPrice,
-          discountPercentage: deal.discountPercentage,
-          isActive: deal.isActive && !deal.isExpired && !deal.isSoldOut,
-          isPopular: true,
-          neonAnimationPhase: _neonAnimationPhase,
-        );
-        
-        _markers.removeWhere((marker) => marker.markerId.value == deal.id);
-        _markers.add(
-          Marker(
-            markerId: MarkerId(deal.id),
-            position: LatLng(deal.latitude, deal.longitude),
-            icon: customMarker,
-            onTap: () => _onMarkerTap(deal),
-            infoWindow: InfoWindow.noText,
-          ),
-        );
-      }
-    }
-    
-    if (mounted) setState(() {});
-  }*/
+  
 
   Future<void> _initializeScreen() async {
     
@@ -128,7 +84,7 @@ class _MainScreenState extends State<MainScreen> {
 
 // Replace your existing _updateMarkers() method in main_screen.dart with this:
 
-Future<void> _updateMarkers() async {
+Future<void> _updateMarkersOld() async {
   final dealService = Provider.of<DealService>(context, listen: false);
   
   print('🔄 Starting marker update for ${dealService.deals.length} deals...');
@@ -196,6 +152,125 @@ Future<void> _updateMarkers() async {
   }
   
   print('🎉 Marker update complete: ${allMarkers.length} markers on map');
+}
+
+
+Future<void> _updateMarkers() async {
+  final dealService = Provider.of<DealService>(context, listen: false);
+  
+  debugPrint('🔄 Starting marker update for ${dealService.deals.length} deals...');
+
+   // Apply filters
+  final filteredDeals = _getFilteredDeals(dealService.deals);
+   setState(() {
+    _markers.clear();
+  });
+  // Step 1: Group deals by businessId (more reliable than coordinates)
+  final Map<String, List<Deal>> dealsByBusiness = {};
+  
+  for (final deal in filteredDeals) {  // Use filteredDeals instead of dealService.deals
+    dealsByBusiness.putIfAbsent(deal.businessId, () => []).add(deal);
+  }
+  
+  debugPrint('📍 Grouped into ${dealsByBusiness.length} unique businesses');
+  
+  // Step 2: Convert to list for chunking
+  final businesses = dealsByBusiness.entries.toList();
+  final Set<Marker> allMarkers = {};
+  
+  // Step 3: Process in chunks for optimal performance
+  const chunkSize = 10; // Smaller chunks since logo generation is heavier
+  final totalChunks = (businesses.length / chunkSize).ceil();
+  
+  for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    final startIdx = chunkIndex * chunkSize;
+    final endIdx = (startIdx + chunkSize < businesses.length) 
+        ? startIdx + chunkSize 
+        : businesses.length;
+    
+    final chunk = businesses.sublist(startIdx, endIdx);
+    
+    debugPrint('📦 Processing chunk ${chunkIndex + 1}/$totalChunks (businesses $startIdx-$endIdx)');
+    
+    // Step 4: Generate markers in parallel within chunk
+    final chunkFutures = chunk.map((entry) async {
+      return await _createMarkerForBusiness(entry.key, entry.value);
+    }).toList();
+    
+    // Step 5: Wait for all markers in this chunk
+    try {
+      final chunkMarkers = await Future.wait(
+        chunkFutures,
+        eagerError: false,
+      );
+      
+      // Add successfully created markers
+      allMarkers.addAll(chunkMarkers.whereType<Marker>());
+      
+      // Step 6: Update UI progressively
+      if (mounted) {
+        setState(() {
+          _markers = Set.from(allMarkers);
+        });
+        debugPrint('✅ Updated map with ${allMarkers.length} markers so far');
+      }
+      
+      // Small delay between chunks to prevent UI jank
+      if (endIdx < businesses.length) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Error processing chunk ${chunkIndex + 1}: $e');
+    }
+  }
+  
+  debugPrint('🎉 Marker update complete: ${allMarkers.length} markers on map');
+}
+
+/// Creates a single marker for a business with all its deals
+Future<Marker?> _createMarkerForBusiness(String businessId, List<Deal> deals) async {
+  try {
+    final firstDeal = deals.first;
+    final dealCount = deals.length;
+    final logoUrl = firstDeal.businessLogoUrl;
+    
+    BitmapDescriptor markerIcon;
+    
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      // Use logo marker
+      markerIcon = await LogoMarkerGenerator.createLogoMarkerWithBadge(
+        logoUrl: logoUrl,
+        cacheKey: businessId,
+        dealCount: dealCount,
+        size: 70,
+      );
+    } else {
+      // Fallback to category marker
+      final maxDiscount = deals.map((d) => d.discountPercentage).reduce((a, b) => a > b ? a : b);
+      markerIcon = await CustomMarkerGenerator.createDealMarkerWithCount(
+        category: firstDeal.category,
+        price: firstDeal.dealPrice,
+        originalPrice: firstDeal.originalPrice,
+        discountPercentage: maxDiscount,
+        isActive: deals.any((d) => d.isActive && !d.isExpired && !d.isSoldOut),
+        isPopular: true,
+        dealCount: dealCount,
+      );
+    }
+    
+    return Marker(
+  markerId: MarkerId(businessId),
+  position: LatLng(firstDeal.latitude, firstDeal.longitude),
+  icon: markerIcon,
+  onTap: () => _onMarkerTap(deals),  // Always use existing handler
+  infoWindow: InfoWindow.noText,
+);
+    
+  } catch (e) {
+    debugPrint('❌ Error creating marker for business $businessId: $e');
+    return null;
+  }
 }
 
 /// Create a single marker for a location (can have multiple deals)
@@ -374,46 +449,76 @@ void _onMarkerTap(dynamic dealsOrDeal) {
   }
 
   Widget _buildBodyWithDidChangeDependencies() {
-    // This completely avoids the Consumer rebuild issue
-    
-    final dealService = Provider.of<DealService>(context);
-    
-    // Show loading state
-    if (dealService.isLoading && dealService.deals.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading deals...'),
-          ],
-        ),
-      );
-    }
-
-    // Show error state  
-    if (dealService.errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error, size: 64, color: Colors.red.shade400),
-            SizedBox(height: 16),
-            Text(dealService.errorMessage!),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => dealService.startListening(),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Return the map
-    return _buildMap();
+  final dealService = Provider.of<DealService>(context);
+  
+  // Show loading state
+  if (dealService.isLoading && dealService.deals.isEmpty) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Loading deals...'),
+        ],
+      ),
+    );
   }
+
+  // Show error state  
+  if (dealService.errorMessage != null) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error, size: 64, color: Colors.red.shade400),
+          const SizedBox(height: 16),
+          Text(dealService.errorMessage!),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => dealService.startListening(),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Return map WITH filter chips overlay
+  return Stack(
+    children: [
+      // Map layer
+      _buildMap(),
+      
+      // Filter chips overlay at top
+      Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: DealFilterChips(
+          selectedFilters: _selectedFilters,
+          filterCounts: _getFilterCounts(dealService.deals),
+          onFilterToggle: (filterId) {
+            setState(() {
+              if (_selectedFilters.contains(filterId)) {
+                _selectedFilters.remove(filterId);
+              } else {
+                _selectedFilters.add(filterId);
+              }
+            });
+            _updateMarkers(); // Refresh markers with filter
+          },
+          onClearAll: () {
+            setState(() {
+              _selectedFilters.clear();
+            });
+            _updateMarkers();
+          },
+        ),
+      ),
+    ],
+  );
+}
 
   @override
   void didChangeDependencies() {
@@ -1044,11 +1149,32 @@ void _showDealPreviewCarousel(List<Deal> deals) {
     }
   }
 
+ List<Deal> _getFilteredDeals(List<Deal> allDeals) {
+  if (_selectedFilters.isEmpty) return allDeals;
+  
+  return allDeals.where((deal) {
+    // Get all selected filter predicates
+    final activeFilters = DealFilterChips.availableFilters
+        .where((f) => _selectedFilters.contains(f.id));
+    
+    // Deal passes if it matches ANY selected filter
+    return activeFilters.any((filter) => filter.predicate(deal));
+  }).toList();
+}
+ 
+ Map<String, int> _getFilterCounts(List<Deal> allDeals) {
+  final counts = <String, int>{};
+  for (final filter in DealFilterChips.availableFilters) {
+    counts[filter.id] = allDeals.where((d) => filter.predicate(d)).length;
+  }
+  return counts;
+}
+ 
    // ⭐ NEW METHOD: Switch body based on bottom navigation
   Widget _buildBodyBasedOnBottomNavigation() {
     switch (_currentBottomIndex) {
       case 0:
-        return _buildBodyWithDidChangeDependencies(); // Your existing map view
+        return _buildBodyWithDidChangeDependencies(); // Existing map view
       case 1:
         return const VoucherListScreen(); // My Vouchers
       case 2:

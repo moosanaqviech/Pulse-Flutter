@@ -56,44 +56,82 @@ class _DealPreviewCarouselState extends State<DealPreviewCarousel> {
           
           // Header
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on, size: 20, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.deals.first.businessName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${widget.deals.length} deals available',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: widget.onClose,
-                ),
-              ],
+  padding: const EdgeInsets.all(16),
+  child: Row(
+    children: [
+      // Business Logo
+      if (widget.deals.first.businessLogoUrl != null &&
+          widget.deals.first.businessLogoUrl!.isNotEmpty)
+        Container(
+          width: 48,
+          height: 48,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              widget.deals.first.businessLogoUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: Colors.grey[200],
+                child: const Icon(Icons.store, color: Colors.grey),
+              ),
             ),
           ),
-
+        )
+      else
+        Container(
+          width: 48,
+          height: 48,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.location_on, color: Colors.blue),
+        ),
+      
+      // Business name and deal count
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.deals.first.businessName,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.deals.length} deals available',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+      
+      // Close button
+      IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: widget.onClose,
+      ),
+    ],
+  ),
+),
           // Carousel
           SizedBox(
             height: 340,

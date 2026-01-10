@@ -29,9 +29,11 @@ class DealService extends ChangeNotifier {
           .where('expirationTime', isGreaterThan: Timestamp.now())
           .get();
 
-      _deals = querySnapshot.docs
+       _deals = querySnapshot.docs
           .map((doc) => Deal.fromFirestore(doc))
+          .where((deal) => _shouldShowDeal(deal))
           .toList();
+
 
       // If no deals found, load sample data
       if (_deals.isEmpty) {
@@ -48,6 +50,83 @@ class DealService extends ChangeNotifier {
 
  
  
+ // ✅ ADD THIS METHOD: Check if deal should be shown right now
+  bool _shouldShowDeal(Deal deal) {
+    // Non-recurring deals: show if active and not expired
+    if (!deal.isRecurring) {
+      return true;
+    }
+    
+    // Recurring deals: check if current day/time matches schedule
+    return _isRecurringDealActive(deal);
+  }
+  
+  // ✅ ADD THIS METHOD: Check if recurring deal is active right now
+  bool _isRecurringDealActive(Deal deal) {
+    if (deal.recurringSchedule == null) return false;
+    
+    final now = DateTime.now();
+    final currentDay = _getDayName(now.weekday);
+    final currentTime = TimeOfDay.fromDateTime(now);
+    
+    final schedule = deal.recurringSchedule!;
+    final weekdays = List<String>.from(schedule['weekdays'] ?? []);
+    final weekends = List<String>.from(schedule['weekends'] ?? []);
+    
+    // Check if current day is in the schedule
+    bool isDayActive = weekdays.contains(currentDay) || weekends.contains(currentDay);
+    if (!isDayActive) return false;
+    
+    // Determine which time range to check
+    Map<String, dynamic>? timeRange;
+    if (weekdays.contains(currentDay)) {
+      timeRange = schedule['weekdayTimes'] as Map<String, dynamic>?;
+    } else if (weekends.contains(currentDay)) {
+      timeRange = schedule['weekendTimes'] as Map<String, dynamic>?;
+    }
+    
+    if (timeRange == null) return false;
+    
+    // Parse time range
+    final startTime = _parseTimeString(timeRange['start'] ?? '00:00');
+    final endTime = _parseTimeString(timeRange['end'] ?? '23:59');
+    
+    // Check if current time is within range
+    return _isTimeInRange(currentTime, startTime, endTime);
+  }
+  
+  // ✅ ADD THIS METHOD: Convert weekday number to name
+  String _getDayName(int weekday) {
+    switch (weekday) {
+      case 1: return 'monday';
+      case 2: return 'tuesday';
+      case 3: return 'wednesday';
+      case 4: return 'thursday';
+      case 5: return 'friday';
+      case 6: return 'saturday';
+      case 7: return 'sunday';
+      default: return '';
+    }
+  }
+  
+  // ✅ ADD THIS METHOD: Parse time string "HH:MM" to TimeOfDay
+  TimeOfDay _parseTimeString(String timeStr) {
+    final parts = timeStr.split(':');
+    return TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+  }
+  
+  // ✅ ADD THIS METHOD: Check if current time is within range
+  bool _isTimeInRange(TimeOfDay current, TimeOfDay start, TimeOfDay end) {
+    final currentMinutes = current.hour * 60 + current.minute;
+    final startMinutes = start.hour * 60 + start.minute;
+    final endMinutes = end.hour * 60 + end.minute;
+    
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  }
+
   // Load sample deals for demo
   Future<void> _loadSampleDeals() async {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -222,6 +301,7 @@ class DealService extends ChangeNotifier {
             
             _deals = snapshot.docs
                 .map((doc) => Deal.fromFirestore(doc))
+                .where((deal) => _shouldShowDeal(deal))
                 .toList();
                 
             _setLoading(false);
