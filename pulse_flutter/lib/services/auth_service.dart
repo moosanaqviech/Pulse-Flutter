@@ -5,12 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   User? _user;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _googleSignInInitialized = false;
 
   User? get currentUser => _user;
   bool get isLoading => _isLoading;
@@ -25,12 +25,21 @@ class AuthService extends ChangeNotifier {
     });
   }
 
-  Future<void> refreshAuthToken() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user != null) {
-    await user.getIdToken(true); // Force refresh
+  // Initialize Google Sign In (must be called once before using)
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (!_googleSignInInitialized) {
+      await GoogleSignIn.instance.initialize();
+      _googleSignInInitialized = true;
+    }
   }
-}
+
+  Future<void> refreshAuthToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await user.getIdToken(true);
+    }
+  }
+
   // Email & Password Sign Up
   Future<bool> signUpWithEmail({
     required String email,
@@ -93,22 +102,37 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // Google Sign In
+  // Google Sign In (updated for google_sign_in 7.x)
   Future<bool> signInWithGoogle() async {
     try {
       _setLoading(true);
       _clearError();
 
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      // Initialize Google Sign In
+      await _ensureGoogleSignInInitialized();
+
+      // Authenticate with Google
+      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate(
+        scopeHint: ['email', 'profile'],
+      );
+      
       if (googleUser == null) {
         _setLoading(false);
         return false; // User cancelled
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // Get ID token from authentication (synchronous in v7)
+      final String? idToken = googleUser.authentication.idToken;
+
+      // Get authorization with scopes to obtain access token
+      final authorization = await googleUser.authorizationClient.authorizeScopes(
+        ['email', 'profile'],
+      );
+
+      // Create Firebase credential
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        accessToken: authorization.accessToken,
+        idToken: idToken,
       );
 
       final UserCredential result = await _auth.signInWithCredential(credential);
@@ -118,11 +142,14 @@ class AuthService extends ChangeNotifier {
         return true;
       }
       return false;
+    } on GoogleSignInException catch (e) {
+      _setError('Google sign in failed: ${e.description ?? e.code.name}');
+      return false;
     } on FirebaseAuthException catch (e) {
       _setError(_getFirebaseErrorMessage(e.code));
       return false;
     } catch (e) {
-      _setError('Google sign in failed');
+      _setError('Google sign in failed: $e');
       return false;
     } finally {
       _setLoading(false);
@@ -151,7 +178,8 @@ class AuthService extends ChangeNotifier {
   // Sign Out
   Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
+      await _ensureGoogleSignInInitialized();
+      await GoogleSignIn.instance.disconnect();
       await _auth.signOut();
     } catch (e) {
       debugPrint('Error signing out: $e');
