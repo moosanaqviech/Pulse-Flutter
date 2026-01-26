@@ -7,10 +7,12 @@ class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
+  static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  static bool _isInitialized = false;
+  
   User? _user;
   bool _isLoading = true;
   String? _errorMessage;
-  bool _googleSignInInitialized = false;
 
   User? get currentUser => _user;
   bool get isLoading => _isLoading;
@@ -26,10 +28,12 @@ class AuthService extends ChangeNotifier {
   }
 
   // Initialize Google Sign In (must be called once before using)
-  Future<void> _ensureGoogleSignInInitialized() async {
-    if (!_googleSignInInitialized) {
-      await GoogleSignIn.instance.initialize();
-      _googleSignInInitialized = true;
+  static Future<void> initSignIn() async {
+    if (!_isInitialized) {
+      await _googleSignIn.initialize(
+        serverClientId: '930910441824-br3m1eetvjshravis6i9u4sdf7m8sfp1.apps.googleusercontent.com',
+      );
+      _isInitialized = true;
     }
   }
 
@@ -102,59 +106,70 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // Google Sign In (updated for google_sign_in 7.x)
-  Future<bool> signInWithGoogle() async {
-    try {
-      _setLoading(true);
-      _clearError();
+  // Google Sign In (google_sign_in 7.x approach from codewtf)
+  
+Future<bool> signInWithGoogle() async {
+  try {
+    _setLoading(true);
+    _clearError();
 
-      // Initialize Google Sign In
-      await _ensureGoogleSignInInitialized();
+    // Initialize Google Sign In
+    await initSignIn();
+    print('DEBUG: Initialized');
 
-      // Authenticate with Google
-      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate(
-        scopeHint: ['email', 'profile'],
-      );
-      
-      if (googleUser == null) {
-        _setLoading(false);
-        return false; // User cancelled
-      }
-
-      // Get ID token from authentication (synchronous in v7)
-      final String? idToken = googleUser.authentication.idToken;
-
-      // Get authorization with scopes to obtain access token
-      final authorization = await googleUser.authorizationClient.authorizeScopes(
+    // Authenticate with Google
+    final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+    print('DEBUG: Authenticated - ${googleUser.email}');
+    
+    // Get ID token from authentication (synchronous in v7)
+    final idToken = googleUser.authentication.idToken;
+    print('DEBUG: ID Token - ${idToken != null ? "exists" : "NULL"}');
+    
+    // Get authorization client
+    final authorizationClient = googleUser.authorizationClient;
+    
+    // Try to get existing authorization
+    GoogleSignInClientAuthorization? authorization = 
+        await authorizationClient.authorizationForScopes(['email', 'profile']);
+    print('DEBUG: Authorization - ${authorization?.accessToken != null ? "exists" : "NULL"}');
+    
+    // Get access token
+    final accessToken = authorization?.accessToken;
+    
+    // If no access token, request authorization
+    if (accessToken == null) {
+      print('DEBUG: Requesting new authorization...');
+      final newAuthorization = await authorizationClient.authorizeScopes(
         ['email', 'profile'],
       );
-
-      // Create Firebase credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: authorization.accessToken,
-        idToken: idToken,
-      );
-
-      final UserCredential result = await _auth.signInWithCredential(credential);
-      
-      if (result.user != null) {
-        await _createUserProfile(result.user!, 'google');
-        return true;
-      }
-      return false;
-    } on GoogleSignInException catch (e) {
-      _setError('Google sign in failed: ${e.description ?? e.code.name}');
-      return false;
-    } on FirebaseAuthException catch (e) {
-      _setError(_getFirebaseErrorMessage(e.code));
-      return false;
-    } catch (e) {
-      _setError('Google sign in failed: $e');
-      return false;
-    } finally {
-      _setLoading(false);
+      authorization = newAuthorization;
+      print('DEBUG: New access token - ${authorization.accessToken != null ? "exists" : "NULL"}');
     }
+
+    // Create Firebase credential
+    final credential = GoogleAuthProvider.credential(
+      accessToken: authorization?.accessToken,
+      idToken: idToken,
+    );
+    print('DEBUG: Credential created');
+
+    final UserCredential result = await _auth.signInWithCredential(credential);
+    print('DEBUG: Firebase sign in result - ${result.user?.email}');
+    
+    if (result.user != null) {
+      await _createUserProfile(result.user!, 'google');
+      print('DEBUG: Profile created, returning true');
+      return true;
+    }
+    return false;
+  } catch (e) {
+    print('DEBUG: ERROR - $e');
+    _setError('Google sign in failed: $e');
+    return false;
+  } finally {
+    _setLoading(false);
   }
+}
 
   // Password Reset
   Future<bool> resetPassword(String email) async {
@@ -178,8 +193,8 @@ class AuthService extends ChangeNotifier {
   // Sign Out
   Future<void> signOut() async {
     try {
-      await _ensureGoogleSignInInitialized();
-      await GoogleSignIn.instance.disconnect();
+      await initSignIn();
+      await _googleSignIn.disconnect();
       await _auth.signOut();
     } catch (e) {
       debugPrint('Error signing out: $e');
