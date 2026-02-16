@@ -38,7 +38,10 @@ void main() async {
   // Configure Stripe with new API
   Stripe.publishableKey = Constants.stripeLivePublishableKey;
   Stripe.merchantIdentifier = 'merchant.com.pulse.consumer';
-  await Stripe.instance.applySettings();
+  await Stripe.instance.applySettings(
+    //merchantIdentifier: 'merchant.shop.checkpulse.pulse',
+    //merchantCountryCode: 'CA',
+  );
   
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
