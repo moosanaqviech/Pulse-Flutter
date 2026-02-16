@@ -31,7 +31,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadSavedPaymentMethods();
+  });
   }
 
   Future<void> _loadSavedPaymentMethods() async {
