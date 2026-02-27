@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "930910441824-v4kcaee6frusvvhd0suknhijrr21pm7m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pulse.business",
+            "certificate_hash": "3b8e6dd99548b2d7012973deb68defc6a5e17f07"
+          }
+        },
+        {
           "client_id": "930910441824-br3m1eetvjshravis6i9u4sdf7m8sfp1.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -45,6 +53,13 @@
             {
               "client_id": "930910441824-br3m1eetvjshravis6i9u4sdf7m8sfp1.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "930910441824-p2a77095g0meoj7757ruo2d77873vok9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pulse.consumer"
+              }
             }
           ]
         }
@@ -58,6 +73,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "930910441824-7qnk8cvqaihlueep9pb5trotvjjgcibh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pulse.consumer",
+            "certificate_hash": "e6686d00a2ede867c4d011ee5303e1e6c94a40af"
+          }
+        },
         {
           "client_id": "930910441824-kic77al0bautokcvdrepsnlfv4ufb1bi.apps.googleusercontent.com",
           "client_type": 1,
@@ -90,6 +113,13 @@
             {
               "client_id": "930910441824-br3m1eetvjshravis6i9u4sdf7m8sfp1.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "930910441824-p2a77095g0meoj7757ruo2d77873vok9.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pulse.consumer"
+              }
             }
           ]
         }

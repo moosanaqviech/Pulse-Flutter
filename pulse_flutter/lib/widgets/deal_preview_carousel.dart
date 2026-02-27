@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/deal_tags.dart';
 import '../models/deal.dart';
 
 class DealPreviewCarousel extends StatefulWidget {
@@ -289,10 +290,41 @@ class _DealPreviewCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              
+                if (deal.tags.isNotEmpty)
+  Positioned(
+    bottom: 12,
+    left: 12,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: deal.tags.map((tagId) {
+        final tag = DealTags.getById(tagId);
+        if (tag == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: tag.color.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${tag.emoji} ${tag.label}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    ),
+  ),
               ],
             ),
 
-            // Content section
+           // Content section
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

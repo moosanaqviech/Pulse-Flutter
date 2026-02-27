@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/database_config.dart';
 import '../models/rating.dart';
 
 class RatingService extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = DatabaseConfig.instance;
   
   bool _isLoading = false;
   String? _errorMessage;

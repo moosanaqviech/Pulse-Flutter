@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../config/database_config.dart';
 import '../models/purchase.dart';
 import '../models/deal.dart';
 
 class PurchaseService extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = DatabaseConfig.instance;
   
   List<Purchase> _purchases = [];
   bool _isLoading = false;

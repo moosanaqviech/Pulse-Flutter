@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 
+import '../config/database_config.dart';
 import '../models/purchase.dart';
 import '../screens/voucher_detail_screen.dart';
 
 class VoucherNotificationService extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = DatabaseConfig.instance;
   StreamSubscription<QuerySnapshot>? _voucherSubscription;
   
   Map<String, Purchase> _lastKnownVouchers = {};

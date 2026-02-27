@@ -107,6 +107,49 @@ class DealFilterChips extends StatelessWidget {
         return timeLeft.inHours <= 2 && !timeLeft.isNegative;
       },
     ),
+// --- Tag filters (dynamic, based on active deals) ---
+     DealFilter(
+      id: 'tag_new_item',
+      label: '🆕 New',
+      icon: Icons.fiber_new,
+      type: DealFilterType.category, // reuse existing type
+      predicate: (deal) => deal.tags.contains('new_item'),
+    ),
+    DealFilter(
+      id: 'tag_event_special',
+      label: '🎉 Event',
+      icon: Icons.celebration,
+      type: DealFilterType.category,
+      predicate: (deal) => deal.tags.contains('event_special'),
+    ),
+    DealFilter(
+      id: 'tag_flash_sale',
+      label: '⚡ Flash',
+      icon: Icons.flash_on,
+      type: DealFilterType.category,
+      predicate: (deal) => deal.tags.contains('flash_sale'),
+    ),
+    DealFilter(
+      id: 'tag_happy_hour',
+      label: '🍻 Happy Hour',
+      icon: Icons.local_bar,
+      type: DealFilterType.category,
+      predicate: (deal) => deal.tags.contains('happy_hour'),
+    ),
+    DealFilter(
+      id: 'tag_game_day',
+      label: '⚽ Game Day',
+      icon: Icons.sports_soccer,
+      type: DealFilterType.category,
+      predicate: (deal) => deal.tags.contains('game_day'),
+    ),
+    DealFilter(
+      id: 'tag_grand_opening',
+      label: '🎊 Grand Opening',
+      icon: Icons.store,
+      type: DealFilterType.category,
+      predicate: (deal) => deal.tags.contains('grand_opening'),
+    ),
   ];
 
   @override
@@ -134,20 +177,30 @@ class DealFilterChips extends StatelessWidget {
           ],
           
           // Filter chips
-          ...availableFilters.map((filter) {
-            final isSelected = selectedFilters.contains(filter.id);
-            final count = filterCounts?[filter.id];
-            
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _FilterChip(
-                filter: filter,
-                isSelected: isSelected,
-                count: count,
-                onTap: () => onFilterToggle(filter.id),
-              ),
-            );
-          }),
+          ...availableFilters
+    .where((filter) {
+      // Always show category/discount/timing filters
+      // Only show tag filters if they have matching deals
+      if (filter.id.startsWith('tag_')) {
+        final count = filterCounts?[filter.id] ?? 0;
+        return count > 0;
+      }
+      return true;
+    })
+    .map((filter) {
+      final isSelected = selectedFilters.contains(filter.id);
+      final count = filterCounts?[filter.id];
+      
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: _FilterChip(
+          filter: filter,
+          isSelected: isSelected,
+          count: count,
+          onTap: () => onFilterToggle(filter.id),
+        ),
+      );
+    }),
         ],
       ),
     );

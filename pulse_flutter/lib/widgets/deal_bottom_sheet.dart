@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import 'package:pulse_flutter/mixins/distance_calculator_mixin.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/database_config.dart';
+import '../constants/deal_tags.dart';
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
 import '../services/analytics_service.dart';
@@ -896,6 +898,19 @@ Widget _buildAddressLine(BuildContext context) {
       ),
       
       const SizedBox(height: 12),
+      if (widget.deal.tags.isNotEmpty) ...[
+    const SizedBox(height: 8),
+    Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: widget.deal.tags.map((tagId) {
+        final tag = DealTags.getById(tagId);
+        if (tag == null) return const SizedBox.shrink();
+        return _buildTagChip(tag);
+      }).toList(),
+    ),
+    const SizedBox(height: 8),
+  ],
     ],
   );
 }
@@ -1457,6 +1472,32 @@ Widget _buildDescriptionSection(BuildContext context) {
   );
 }
 
+Widget _buildTagChip(DealTag tag) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: tag.color.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: tag.color.withOpacity(0.3)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(tag.emoji, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 4),
+        Text(
+          tag.label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: tag.color,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 Widget _buildExpandableDescription() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1513,7 +1554,7 @@ Future<void> _loadBusinessRating() async {
   }
 
   try {
-    final businessDoc = await FirebaseFirestore.instance
+    final businessDoc = await DatabaseConfig.instance
         .collection('businesses')
         .doc(widget.deal.businessId)
         .get();

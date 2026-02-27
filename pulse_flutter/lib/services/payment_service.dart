@@ -3,6 +3,7 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../config/database_config.dart';
 import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
 import '../utils/payment_debugger.dart';
@@ -22,7 +23,7 @@ class PaymentService extends ChangeNotifier {
     try {
       _setLoading(true);
       
-      final querySnapshot = await FirebaseFirestore.instance
+      final querySnapshot = await DatabaseConfig.instance
           .collection('users')
           .doc(userId)
           .collection('payment_methods')

@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../config/database_config.dart';
+
 class AnalyticsService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFirestore _firestore = DatabaseConfig.instance;
   static final Set<String> _viewedDeals = <String>{};  // Prevent duplicate views in same session
 
   /// Track when user views a deal (Direct Firestore)

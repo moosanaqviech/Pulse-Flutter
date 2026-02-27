@@ -24,6 +24,7 @@ class Deal {
   final String? businessLogoUrl;
   final bool isRecurring;
   final Map<String, dynamic>? recurringSchedule;
+  final List<String> tags;
 
   Deal({
     required this.id,
@@ -49,7 +50,7 @@ class Deal {
     this.businessLogoUrl,
     this.isRecurring = false,
     this.recurringSchedule,
-
+    this.tags = const [],
 
   });
 
@@ -142,6 +143,7 @@ class Deal {
     recurringSchedule: data['recurringSchedule'] != null
         ? Map<String, dynamic>.from(data['recurringSchedule'])
         : null,
+    tags: data['tags'] != null ? List<String>.from(data['tags']) : [],
     );
   }
 
@@ -166,7 +168,7 @@ class Deal {
       'businessLogoUrl': businessLogoUrl,
       'isRecurring': isRecurring,
       'recurringSchedule': recurringSchedule,
-      
+      "tags": tags,
     };
   }
 
@@ -221,6 +223,7 @@ static int _parseExpirationTime(dynamic value) {
     String? businessLogoUrl,
     bool? isRecurring,
     Map<String, dynamic>? recurringSchedule,
+    List<String>? tags,
     
   }) {
     return Deal(
@@ -245,7 +248,7 @@ static int _parseExpirationTime(dynamic value) {
       businessLogoUrl: businessLogoUrl ?? this.businessLogoUrl,
       isRecurring: isRecurring ?? this.isRecurring,
     recurringSchedule: recurringSchedule ?? this.recurringSchedule,
-    );
+    tags: tags ?? this.tags,);
   }
 
   @override

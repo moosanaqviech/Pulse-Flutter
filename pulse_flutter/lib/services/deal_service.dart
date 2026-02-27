@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
+import '../config/database_config.dart';
 import '../models/deal.dart';
 
 class DealService extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = DatabaseConfig.instance;
   
   List<Deal> _deals = [];
   bool _isLoading = false;
