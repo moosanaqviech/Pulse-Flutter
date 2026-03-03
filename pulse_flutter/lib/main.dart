@@ -43,7 +43,7 @@ void main() async {
     //merchantCountryCode: 'CA',
   );
   
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  //await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
   
 

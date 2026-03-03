@@ -192,11 +192,16 @@ Future<bool> signInWithGoogle() async {
     }
   }
 
-  // Sign Out
   Future<void> signOut() async {
     try {
-      await initSignIn();
-      await _googleSignIn.disconnect();
+      // Only sign out from Google if initialized — don't use disconnect()
+      try {
+        await _googleSignIn.signOut();
+      } catch (e) {
+        debugPrint('Google sign out skipped: $e');
+        // Continue even if Google sign out fails (user may not have used Google)
+      }
+      
       await _auth.signOut();
     } catch (e) {
       debugPrint('Error signing out: $e');

@@ -8,6 +8,7 @@ import '../models/deal.dart';
 import '../models/saved_payment_method.dart';
 import '../utils/payment_debugger.dart';
 import 'tax_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class PaymentService extends ChangeNotifier {
   bool _isLoading = false;
@@ -204,45 +205,41 @@ class PaymentService extends ChangeNotifier {
     bool setupFutureUsage = false,
   }) async {
     try {
-      debugPrint('🔵 Creating payment intent...');
-
-      // Use the appropriate function based on whether we need to save the card
       final functionName = setupFutureUsage 
           ? 'createPaymentIntentWithSetup' 
           : 'createPaymentIntent';
 
+      debugPrint('🔵 Calling $functionName with amount: $amount');
+      debugPrint('🔵 Auth user: ${FirebaseAuth.instance.currentUser?.uid}');
+
       final callable = FirebaseFunctions.instance
           .httpsCallable(functionName);
 
-      final params = {
+      final response = await callable.call({
         'dealId': dealId,
         'purchaseId': purchaseId,
         'amount': amount,
-        'currency': 'cad', // Match your existing currency
-      };
+        'currency': 'cad',
+        if (setupFutureUsage) 'setupFutureUsage': true,
+      });
 
-      // Add setupFutureUsage only if true
-      if (setupFutureUsage) {
-        params['setupFutureUsage'] = true;
-      }
-
-      final response = await callable.call(params);
-
+      debugPrint('🔵 Response: ${response.data}');
+      
       final data = response.data as Map<String, dynamic>;
       
       if (data['success'] == true) {
         return data['clientSecret'] as String?;
       } else {
+        debugPrint('❌ Function returned success=false: $data');
         _setError(data['error']?.toString() ?? 'Failed to create payment intent');
         return null;
       }
-
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('❌ Cloud Function Error: ${e.code} - ${e.message}');
+      debugPrint('❌ Cloud Function Error: ${e.code} - ${e.message} - ${e.details}');
       _setError(_getFirebaseFunctionError(e));
       return null;
     } catch (e) {
-      debugPrint('❌ Error creating payment intent: $e');
+      debugPrint('❌ Unexpected error: $e');
       _setError('Network error: Unable to connect to payment server');
       return null;
     }
@@ -450,15 +447,18 @@ class PaymentService extends ChangeNotifier {
   // Calculate final amount including tax if applicable
   Future<double> getFinalAmount(Deal deal) async {
     if (!deal.isTaxApplicable) {
-      return deal.dealPrice; // No tax needed
+      return deal.dealPrice;
     }
     
-    // Get province from deal location
     final province = await TaxService.getProvinceFromCoordinates(deal.latitude, deal.longitude);
     
-    // Calculate tax
-    final tax = TaxService.calculateTax(deal.dealPrice, province!);
+    if (province == null) {
+      // Default to Ontario tax since you're launching in Toronto
+      final tax = TaxService.calculateTax(deal.dealPrice, 'ON');
+      return deal.dealPrice + tax;
+    }
     
+    final tax = TaxService.calculateTax(deal.dealPrice, province);
     return deal.dealPrice + tax;
   }
   

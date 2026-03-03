@@ -36,6 +36,10 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+<string>Pulse needs your location to show nearby deals and calculate applicable taxes.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>Pulse uses your location in the background to notify you of nearby deals.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
