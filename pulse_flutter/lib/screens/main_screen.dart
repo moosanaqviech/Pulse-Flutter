@@ -1151,17 +1151,27 @@ void _showDealPreviewCarousel(List<Deal> deals) {
 
  List<Deal> _getFilteredDeals(List<Deal> allDeals) {
   if (_selectedFilters.isEmpty) return allDeals;
-  
+
+  // Split selected filters into row 1 (category) vs row 2 (tag/discount/timing)
+  final row1Selected = DealFilterChips.availableFilters
+      .where((f) => f.type == DealFilterType.category && _selectedFilters.contains(f.id))
+      .toList();
+
+  final row2Selected = DealFilterChips.availableFilters
+      .where((f) => f.type != DealFilterType.category && _selectedFilters.contains(f.id))
+      .toList();
+
   return allDeals.where((deal) {
-    // Get all selected filter predicates
-    final activeFilters = DealFilterChips.availableFilters
-        .where((f) => _selectedFilters.contains(f.id));
-    
-    // Deal passes if it matches ANY selected filter
-    return activeFilters.any((filter) => filter.predicate(deal));
+    // OR within row 1: deal matches ANY selected category
+    final passesRow1 = row1Selected.isEmpty || row1Selected.any((f) => f.predicate(deal));
+
+    // OR within row 2: deal matches ANY selected tag/discount/timing
+    final passesRow2 = row2Selected.isEmpty || row2Selected.any((f) => f.predicate(deal));
+
+    // AND between rows: must pass both
+    return passesRow1 && passesRow2;
   }).toList();
 }
- 
  Map<String, int> _getFilterCounts(List<Deal> allDeals) {
   final counts = <String, int>{};
   for (final filter in DealFilterChips.availableFilters) {
